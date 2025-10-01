@@ -151,12 +151,12 @@ export default function FacultyPrintPage() {
           <tbody>
             ${appraisal.evaluations
               .map(
-                (eval) => `
+                (evaluation) => `
               <tr>
-                <td>${eval.criteria?.name || "N/A"}</td>
-                <td>${eval.selfPoints || "N/A"}</td>
-                <td>${eval.finalPoints || "N/A"}</td>
-                <td>${eval.comments || "No comments"}</td>
+                <td>${evaluation.criteria?.name || "N/A"}</td>
+                <td>${evaluation.selfPoints || "N/A"}</td>
+                <td>${evaluation.finalPoints || "N/A"}</td>
+                <td>${evaluation.comments || "No comments"}</td>
               </tr>
             `,
               )
