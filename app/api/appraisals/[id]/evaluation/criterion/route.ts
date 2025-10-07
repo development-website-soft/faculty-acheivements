@@ -328,3 +328,64 @@ async function handler(req: Request, ctx: { params: Promise<{ id: string }> }) {
 
 export const PATCH = handler
 export const POST  = handler
+
+// Add GET method to retrieve existing evaluations
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await ctx.params
+    const appraisalId = Number(id)
+    if (Number.isNaN(appraisalId)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
+
+    // Get user role for evaluation lookup
+    let role: 'HOD' | 'DEAN' = 'HOD'
+    let user = await requireHOD().catch(() => null)
+    if (!user) { user = await requireDean(); role = 'DEAN' }
+
+    // Find existing evaluation for this role
+    const evaluation = await prisma.evaluation.findUnique({
+      where: {
+        appraisalId_role: { appraisalId, role }
+      }
+    })
+
+    if (!evaluation) {
+      return NextResponse.json([])
+    }
+
+    // Return evaluation data in the format expected by the frontend
+    const evaluations = [
+      {
+        criterion: 'research',
+        band: evaluation.researchBand,
+        score: evaluation.researchPts,
+        explanation: evaluation.researchExplanation,
+        note: null, // Notes are stored in general notes field
+      },
+      {
+        criterion: 'universityService',
+        band: evaluation.universityServiceBand,
+        score: evaluation.universityServicePts,
+        explanation: evaluation.universityServiceExplanation,
+        note: null,
+      },
+      {
+        criterion: 'communityService',
+        band: evaluation.communityServiceBand,
+        score: evaluation.communityServicePts,
+        explanation: evaluation.communityServiceExplanation,
+        note: null,
+      },
+      {
+        criterion: 'teaching',
+        band: evaluation.teachingQualityBand,
+        score: evaluation.teachingQualityPts,
+        explanation: evaluation.teachingQualityExplanation,
+        note: null,
+      },
+    ].filter(e => e.band || e.score) // Only return criteria that have been evaluated
+
+    return NextResponse.json(evaluations)
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? 'Bad Request' }, { status: 400 })
+  }
+}

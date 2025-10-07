@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2 } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Loader2, Upload, User } from "lucide-react"
 
 type UserRole = "ADMIN" | "DEAN" | "HOD" | "INSTRUCTOR"
 type UserStatus = "ACTIVE" | "INACTIVE"
@@ -52,6 +53,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
 
   const [role, setRole] = useState<UserRole>(user?.role ?? "INSTRUCTOR")
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">(user?.status ?? "ACTIVE")
+  const [image, setImage] = useState<string>(user?.image ?? "")
 
   const [collegeId, setCollegeId] = useState<string>(user?.collegeId ? String(user.collegeId) : "none")
   const [departmentId, setDepartmentId] = useState<string>(user?.departmentId ? String(user.departmentId) : "none")
@@ -135,6 +137,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
         generalSpecialization,
         specificSpecialization,
         dateOfEmployment: dateOfEmploymentRaw ? new Date(dateOfEmploymentRaw) : null,
+        image: image || null,
       }
       if (!user || password) body.password = password
 
@@ -196,6 +199,61 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
                 pattern="^[A-Za-z0-9._%+-]+@uob\.edu$"
               />
             </Row>
+          </Section>
+
+          <div className="h-px bg-border" />
+
+          {/* Profile Image */}
+          <Section title="Profile Image">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-20 w-20">
+                <AvatarImage src={image} alt={user?.name || "User"} />
+                <AvatarFallback>
+                  <User className="h-8 w-8" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const input = document.createElement('input')
+                      input.type = 'file'
+                      input.accept = 'image/*'
+                      input.onchange = (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0]
+                        if (file) {
+                          const reader = new FileReader()
+                          reader.onload = (e) => {
+                            setImage(e.target?.result as string)
+                          }
+                          reader.readAsDataURL(file)
+                        }
+                      }
+                      input.click()
+                    }}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    {image ? 'Change Image' : 'Upload Image'}
+                  </Button>
+                  {image && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setImage("")}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Upload a profile image (JPG, PNG, GIF). Recommended size: 200x200px.
+                </p>
+              </div>
+            </div>
           </Section>
 
           <div className="h-px bg-border" />

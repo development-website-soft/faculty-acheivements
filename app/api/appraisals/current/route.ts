@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
         data: {
           facultyId: Number(user.id),
           cycleId: cycle.id,
-          status: "NEW",
+          status: "new",
         },
       });
     }
@@ -77,14 +77,14 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json({
-      appraisal: appraisalSummary,
-      awards,
-      courses,
-      research,
-      scientific,
-      university,
-      community,
-    });
+        appraisalId: appraisal.id,
+        awards,
+        courses,
+        research,
+        scientific,
+        university,
+        community,
+      });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

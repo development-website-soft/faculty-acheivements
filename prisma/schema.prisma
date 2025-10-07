@@ -25,12 +25,11 @@ enum Semester         {
   SUMMER 
   }
 
-enum EvaluationStatus { 
-  NEW 
-  IN_REVIEW 
-  SCORES_SENT 
-  COMPLETE 
-  RETURNED 
+enum EvaluationStatus {
+  new
+  sent
+  complete
+  returned
 }
 enum EvaluationRole   { 
   HOD 
@@ -64,6 +63,12 @@ enum ResearchKind {
   CONTRACTUAL_RESEARCH
   REGISTERED_PATENT
   REFEREED_PAPER
+  OTHER
+}
+
+enum ResearchActivityType {
+  JOURNAL
+  CONFERENCE
   OTHER
 }
 
@@ -129,6 +134,7 @@ model User {
   generalSpecialization String?
   specificSpecialization String?
   dateOfEmployment     DateTime?
+  image                String?   // Profile image file path
 
   appraisals   Appraisal[]
   createdAt    DateTime    @default(now())
@@ -138,20 +144,17 @@ model User {
 }
 
 model AppraisalCycle {
-  id           Int       @id @default(autoincrement())
-  academicYear String
-  semester     Semester
-  startDate    DateTime
-  endDate      DateTime
-  isActive     Boolean   @default(false)
-  appraisals   Appraisal[]
-  gradingConfigs   GradingConfig[]
-  
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+   id           Int       @id @default(autoincrement())
+   academicYear String    @unique
+   startDate    DateTime
+   endDate      DateTime
+   isActive     Boolean   @default(false)
+   appraisals   Appraisal[]
+   gradingConfigs   GradingConfig[]
 
-  @@unique([academicYear, semester])
-}
+   createdAt    DateTime  @default(now())
+   updatedAt    DateTime  @updatedAt
+ }
 
 // ===================== APPRAISAL =========================
 model Appraisal {
@@ -162,7 +165,7 @@ model Appraisal {
   cycle       AppraisalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
 
   // حالة سير العمل (NEW…RETURNED)
-  status      EvaluationStatus @default(NEW)
+  status      EvaluationStatus @default(new)
 
   // درجات مُجمّعة (تُحدّث عند الحساب/الإرسال)
   researchScore           Float?
@@ -262,6 +265,7 @@ model Award {
   area         String?
   organization String?
   dateObtained DateTime?
+  attachment   String?   // File attachment uploaded from device
   fileUrl      String?
   fileKey      String?
 
@@ -282,7 +286,7 @@ model CourseTaught {
   courseTitle     String
   credit          Float?
   studentsCount   Int?
-  studentsEvalAvg Float?  // يُستخدم لحساب Quality of Teaching
+  studentsEvalAvg Float?  
 
   createdAt       DateTime  @default(now())
 
@@ -295,6 +299,7 @@ model ResearchActivity {
   appraisal       Appraisal  @relation(fields: [appraisalId], references: [id], onDelete: Cascade)
 
   title           String
+  type            ResearchActivityType
   kind            ResearchKind
   journalOrPublisher String?
   participation   String? // MAIN_AUTHOR/CO_AUTHOR… (يمكنك تحويلها enum لاحقًا)
@@ -302,6 +307,7 @@ model ResearchActivity {
   refereedArticleRef String?
   refereeDecisionDate DateTime?
 
+  attachment      String? // File attachment uploaded from device
   fileUrl         String?
   fileKey         String?
 
@@ -322,6 +328,7 @@ model ScientificActivity {
   organizingAuth String?
   venue          String?
 
+  attachment     String? // File attachment uploaded from device
   fileUrl        String?
   fileKey        String?
 
@@ -341,6 +348,7 @@ model UniversityService {
   dateFrom        DateTime?
   dateTo          DateTime?
 
+  attachment      String? // File attachment uploaded from device
   fileUrl         String?
   fileKey         String?
 
@@ -360,6 +368,7 @@ model CommunityService {
   dateFrom        DateTime?
   dateTo          DateTime?
 
+  attachment      String? // File attachment uploaded from device
   fileUrl         String?
   fileKey         String?
 

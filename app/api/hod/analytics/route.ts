@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   if (!hod?.departmentId) return NextResponse.json({ error: 'No department' }, { status: 400 })
 
   // cycles
-  const cycles = await prisma.appraisalCycle.findMany({ orderBy: [{ academicYear: 'desc' }, { semester: 'desc' }] })
+  const cycles = await prisma.appraisalCycle.findMany({ orderBy: [{ academicYear: 'desc' }] })
   const active = cycles.find(c => c.isActive)
   const cycleId = Number(cycleIdParam || active?.id || cycles[0]?.id)
 
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
       where: { cycleId: c.id, faculty: { departmentId: hod.departmentId, role: 'INSTRUCTOR' } },
       select: { totalScore: true }
     })
-    return { label: `${c.academicYear}-${c.semester}`, avgTotal: avg(depApps.map(x => x.totalScore ?? 0)) }
+    return { label: `${c.academicYear}`, avgTotal: avg(depApps.map(x => x.totalScore ?? 0)) }
   }))
 
   return NextResponse.json({

@@ -739,14 +739,16 @@
 
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Eye, Save, Calculator, Info } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Eye, Save, Calculator, Info, FolderOpen } from 'lucide-react'
 import router from 'next/router'
 
 // ---------- Types ----------
@@ -1108,6 +1110,99 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
   )
   const [saving, setSaving] = useState(false)
 
+  // Achievements viewing state
+  const [achievementsData, setAchievementsData] = useState<any>(null)
+
+  // Load achievements and evaluation data on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load achievements data
+        const res = await fetch(`/api/appraisals/${appraisalId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setAchievementsData(data)
+        }
+
+        // Load existing evaluation data
+        const evalRes = await fetch(`/api/appraisals/${appraisalId}/evaluation/criterion`)
+        if (evalRes.ok) {
+          const evaluations = await evalRes.json()
+
+          // Initialize performance state with saved data
+          const newPerf: PerfState = {
+            research: {},
+            university: {},
+            community: {},
+            teaching: {},
+          }
+
+          evaluations.forEach((evaluation: any) => {
+            const criterionMap: Record<string, PerfKey> = {
+              'research': 'research',
+              'universityService': 'university',
+              'communityService': 'community',
+              'teaching': 'teaching',
+            }
+
+            const perfKey = criterionMap[evaluation.criterion]
+            if (perfKey && cfg.perf[perfKey]) {
+              newPerf[perfKey] = {
+                band: evaluation.band,
+                points: evaluation.score,
+                explanation: evaluation.explanation,
+                note: evaluation.note || '',
+              }
+            }
+          })
+
+          setPerf(newPerf)
+        }
+
+        // Load capabilities data
+        const capRes = await fetch(`/api/appraisals/${appraisalId}/evaluation/capabilities`)
+        if (capRes.ok) {
+          const capData = await capRes.json()
+
+          if (capData.selections) {
+            const newCaps: CapState = {}
+            cfg.cap.keys.forEach((k) => {
+              const band = capData.selections[k] as BandKey
+              if (band) {
+                const pts = cfg.cap.points[band]
+                const exp = cfg.cap.explanations[k][band]
+                newCaps[k] = {
+                  band,
+                  points: pts,
+                  explanation: [`${BAND_LABEL[band]} (${pts} pts)`, exp].join('\n'),
+                  note: capData.notes?.[k] || '',
+                }
+              } else {
+                newCaps[k] = {}
+              }
+            })
+            setCaps(newCaps)
+          }
+        }
+
+      } catch (error) {
+        console.error('Failed to load evaluation data:', error)
+      }
+    }
+    loadData()
+  }, [appraisalId, cfg])
+  const [achievementsLoading, setAchievementsLoading] = useState(false)
+  const [viewModal, setViewModal] = useState<{
+    open: boolean
+    table: string
+    title: string
+    data?: any[]
+  }>({ open: false, table: '', title: '' })
+  const [selectedAchievements, setSelectedAchievements] = useState<Set<number>>(new Set())
+
+  // Individual achievement evaluations
+  const [achievementEvaluations, setAchievementEvaluations] = useState<Record<number, BandKey>>({})
+
   const performanceTotal = useMemo(() =>
     (perf.research.points ?? 0) + (perf.university.points ?? 0) +
     (perf.community.points ?? 0) + (perf.teaching.points ?? 0)
@@ -1192,7 +1287,7 @@ async function saveAll() {
     await patchCapabilities()
 
     alert('Saved successfully.')
-  //router.push(`/hod/reviews/${appraisalId}/self-development-plan`)
+ //router.push(`/hod/reviews/${appraisalId}/self-development-plan`)
 
   } catch (e) {
     console.error(e)
@@ -1202,19 +1297,238 @@ async function saveAll() {
   }
 }
 
+// Fetch achievements data for a specific table (already loaded on mount)
+async function fetchAchievements(table: string) {
+  setAchievementsLoading(true)
+  try {
+    // Data is already loaded on mount, just return it
+    if (achievementsData) {
+      return achievementsData
+    }
+
+    // Fallback fetch if not loaded yet
+    const res = await fetch(`/api/appraisals/${appraisalId}`)
+    if (!res.ok) throw new Error('Failed to fetch achievements')
+    const data = await res.json()
+    setAchievementsData(data)
+    return data
+  } catch (e) {
+    console.error(e)
+    alert('Failed to load achievements')
+    return null
+  } finally {
+    setAchievementsLoading(false)
+  }
+}
+
+// Open achievements view modal
+function openAchievementsView(table: string, title: string) {
+  fetchAchievements(table).then((data) => {
+    if (data) {
+      setViewModal({
+        open: true,
+        table,
+        title,
+        data: data[table] || []
+      })
+      // Clear previous evaluations when opening modal
+      setAchievementEvaluations({})
+      setSelectedAchievements(new Set())
+    }
+  })
+}
+
+// Toggle achievement selection
+function toggleAchievementSelection(id: number) {
+  setSelectedAchievements(prev => {
+    const newSet = new Set(prev)
+    if (newSet.has(id)) {
+      newSet.delete(id)
+    } else {
+      newSet.add(id)
+    }
+    return newSet
+  })
+}
+
+// Format achievement data for display
+function formatAchievementValue(value: any, field: string): string {
+  if (!value) return '—'
+
+  if (field === 'dateObtained' || field === 'publicationDate' || field === 'date') {
+    return new Date(value).toLocaleDateString()
+  }
+
+  if (field === 'attachment' && value) {
+    return '📎 Available'
+  }
+
+  return String(value)
+}
+
+// Evaluate individual achievement
+function evaluateAchievement(achievementId: number, band: BandKey) {
+  setAchievementEvaluations(prev => ({
+    ...prev,
+    [achievementId]: band
+  }))
+}
+
+// Calculate average evaluation for a table
+function calculateTableAverage(tableKey: string): { band: BandKey | null, points: number } {
+  const tableData = viewModal.data || []
+  const evaluations = tableData
+    .filter(item => selectedAchievements.has(item.id))
+    .map(item => achievementEvaluations[item.id])
+    .filter(Boolean)
+
+  if (evaluations.length === 0) {
+    return { band: null, points: 0 }
+  }
+
+  // Map table keys to PerfKey values for accessing rubrics
+  const perfKeyMap: Record<string, PerfKey> = {
+    'research': 'research',
+    'university': 'university',
+    'community': 'community',
+    'courses': 'teaching',
+  }
+
+  const perfKey = perfKeyMap[tableKey]
+  if (!perfKey || !cfg.perf[perfKey]) {
+    console.error(`Invalid table key for calculation: ${tableKey}`)
+    return { band: null, points: 0 }
+  }
+
+  // Get the rubric for this performance category
+  const rubric = cfg.perf[perfKey]
+
+  // Convert bands to points based on the rubric
+  const pointsMap: Record<BandKey, number> = {
+    HIGH: rubric.bands.HIGH.points,
+    EXCEEDS: rubric.bands.EXCEEDS.points,
+    MEETS: rubric.bands.MEETS.points,
+    PARTIAL: rubric.bands.PARTIAL.points,
+    NEEDS: rubric.bands.NEEDS.points,
+  }
+
+  const totalPoints = evaluations.reduce((sum, band) => sum + (pointsMap[band] || 0), 0)
+  const averagePoints = Math.floor(totalPoints / evaluations.length)
+
+  // Convert average points back to band
+  let averageBand: BandKey = 'NEEDS'
+  if (averagePoints >= pointsMap.HIGH * 0.9) averageBand = 'HIGH'
+  else if (averagePoints >= pointsMap.EXCEEDS * 0.9) averageBand = 'EXCEEDS'
+  else if (averagePoints >= pointsMap.MEETS * 0.9) averageBand = 'MEETS'
+  else if (averagePoints >= pointsMap.PARTIAL * 0.9) averageBand = 'PARTIAL'
+
+  return { band: averageBand, points: averagePoints }
+}
+
+// Get maximum points for a table based on role and table type
+function getTableMaxPoints(tableKey: string): number {
+  const perfKeyMap: Record<string, PerfKey> = {
+    'research': 'research',
+    'university': 'university',
+    'community': 'community',
+    'courses': 'teaching',
+  }
+
+  const perfKey = perfKeyMap[tableKey]
+  if (!perfKey || !cfg.perf[perfKey]) {
+    console.error(`Invalid table key for points: ${tableKey}`)
+    return 20 // fallback
+  }
+
+  return cfg.perf[perfKey].weight
+}
+
+// Apply calculated average to performance evaluation
+function applyTableAverage(tableKey: string) {
+  const average = calculateTableAverage(tableKey)
+  if (average.band) {
+    // Map table keys back to PerfKey values
+    const perfKeyMap: Record<string, PerfKey> = {
+      'research': 'research',
+      'university': 'university',
+      'community': 'community',
+      'courses': 'teaching', // courses table maps to teaching evaluation
+    }
+
+    const perfKey = perfKeyMap[tableKey]
+    if (perfKey && cfg.perf[perfKey]) {
+      pickPerf(perfKey, average.band)
+      setViewModal({ open: false, table: '', title: '' })
+    } else {
+      console.error(`Invalid table key: ${tableKey}`)
+      alert(`Error: Invalid table key ${tableKey}`)
+    }
+  }
+}
+
 
   // UI blocks
-  function BandRow(props: { value?: BandKey; onPick: (b:BandKey)=>void }) {
-    const { value, onPick } = props
+  function BandRow(props: { value?: BandKey; onPick: (b:BandKey)=>void; disabled?: boolean; tableKey?: string }) {
+    const { value, onPick, disabled = false, tableKey } = props
+
+    // Check if this evaluation category has achievements
+    const categoryHasAchievements = tableKey ? (() => {
+      const perfKeyMap: Record<string, PerfKey> = {
+        'research': 'research',
+        'university': 'university',
+        'community': 'community',
+        'teaching': 'teaching',
+      }
+
+      const perfKey = perfKeyMap[tableKey]
+      if (!perfKey || !achievementsData) return false
+
+      const tableName = perfKey === 'teaching' ? 'courses' : perfKey
+      return (achievementsData[tableName]?.length || 0) > 0
+    })() : false
+
+    const shouldDisableBands = disabled || !categoryHasAchievements
+
+    // Color mapping for each band
+    const getBandColors = (band: BandKey, isSelected: boolean) => {
+      if (!isSelected) {
+        return 'bg-white hover:bg-gray-50 border-gray-300'
+      }
+
+      switch (band) {
+        case 'HIGH':
+          return 'bg-green-800 text-white border-green-800' // Dark Green
+        case 'EXCEEDS':
+          return 'bg-green-500 text-white border-green-500' // Light Green
+        case 'MEETS':
+          return 'bg-yellow-500 text-white border-yellow-500' // Golden Yellow
+        case 'PARTIAL':
+          return 'bg-orange-500 text-white border-orange-500' // Orange
+        case 'NEEDS':
+          return 'bg-red-500 text-white border-red-500' // Red
+        default:
+          return 'bg-primary text-primary-foreground border-primary'
+      }
+    }
+
     return (
       <div className="flex flex-wrap gap-2">
         {BAND_ORDER.map(b => (
           <Button
             key={b}
             type="button"
-            variant={value===b ? 'default' : 'outline'}
+            variant="outline"
             onClick={() => onPick(b)}
-            className="capitalize"
+            disabled={shouldDisableBands}
+            className={`capitalize transition-colors ${getBandColors(b, value === b)}`}
+            title={
+              !categoryHasAchievements
+                ? 'No achievements available for evaluation'
+                : `${BAND_LABEL[b]} - ${b === 'HIGH' ? 'أخضر غامق' :
+                     b === 'EXCEEDS' ? 'أخضر فاتح' :
+                     b === 'MEETS' ? 'أصفر ذهبي' :
+                     b === 'PARTIAL' ? 'برتقالي' : 'أحمر'}`
+            }
           >
             {BAND_LABEL[b]}
           </Button>
@@ -1227,12 +1541,31 @@ async function saveAll() {
     k: PerfKey
     title: string
     showView?: boolean
+    showAchievements?: boolean
   }) {
-    const { k, title, showView } = props
+    const { k, title, showView, showAchievements } = props
     const w = cfg.perf[k].weight
     const state = perf[k]
     const selectedBand = state.band
     const score = state.points ?? 0
+
+    // Map performance keys to achievements table names
+    const achievementsTableMap: Record<PerfKey, { table: string, title: string }> = {
+      research: { table: 'research', title: 'Research Activities' },
+      university: { table: 'university', title: 'University Service Achievements' },
+      community: { table: 'community', title: 'Community Service Achievements' },
+      teaching: { table: 'courses', title: 'Courses Taught' },
+    }
+
+    const achievementsInfo = achievementsTableMap[k]
+
+    // Check if this table has achievements
+    const tableHasAchievements = achievementsData && achievementsInfo ?
+      (achievementsData[achievementsInfo.table]?.length || 0) > 0 : false
+
+    // Get count of achievements for this table
+    const achievementsCount = achievementsData && achievementsInfo ?
+      achievementsData[achievementsInfo.table]?.length || 0 : 0
 
     return (
       <Card>
@@ -1246,7 +1579,7 @@ async function saveAll() {
                 {showView && (
                   <Dialog>
                     <DialogTrigger asChild>
-                      <Button size="sm" variant="outline"><Eye className="h-4 w-4 mr-1" /> View</Button>
+                      <Button size="sm" variant="outline"><Eye className="h-4 w-4 mr-1" /> Rubric</Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-2xl">
                       <DialogHeader><DialogTitle>{title} — Rubric</DialogTitle></DialogHeader>
@@ -1269,8 +1602,33 @@ async function saveAll() {
                     </DialogContent>
                   </Dialog>
                 )}
+                {showAchievements && achievementsInfo && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!tableHasAchievements}
+                    onClick={() => openAchievementsView(achievementsInfo.table, achievementsInfo.title)}
+                    title={
+                      tableHasAchievements
+                        ? `${achievementsCount} achievement${achievementsCount !== 1 ? 's' : ''} available`
+                        : 'No achievements available for evaluation'
+                    }
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    View
+                    {achievementsCount > 0 && (
+                      <Badge variant="secondary" className="ml-1 text-xs">
+                        {achievementsCount}
+                      </Badge>
+                    )}
+                  </Button>
+                )}
               </div>
-              <BandRow value={selectedBand} onPick={(b)=>pickPerf(k,b)} />
+              <BandRow
+                value={selectedBand}
+                onPick={(b)=>pickPerf(k,b)}
+                tableKey={k}
+              />
             </div>
 
             {/* Explanation on right */}
@@ -1309,6 +1667,10 @@ async function saveAll() {
     const selectedBand = state?.band
     const score = state?.points ?? 0
 
+    // Check if overall achievements data is available (capabilities can be evaluated when any achievements exist)
+    const hasAnyAchievements = achievementsData ?
+      Object.values(achievementsData).some((table: any) => table && table.length > 0) : false
+
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -1319,7 +1681,11 @@ async function saveAll() {
                 <Badge>Max 20%</Badge>
                 <Badge>{score.toFixed(0)} pts</Badge>
               </div>
-              <BandRow value={selectedBand} onPick={(b)=>pickCap(k,b)} />
+              <BandRow
+                value={selectedBand}
+                onPick={(b)=>pickCap(k,b)}
+                disabled={!hasAnyAchievements}
+              />
             </div>
 
             <div className="rounded-md border p-3 bg-muted/30">
@@ -1351,6 +1717,201 @@ async function saveAll() {
     )
   }
 
+  // Achievements viewing modal
+  function AchievementsModal() {
+    if (!viewModal.open) return null
+
+    const tableData = viewModal.data || []
+    const tableColumns: Record<string, Array<{key: string, label: string}>> = {
+      awards: [
+        { key: 'name', label: 'Name' },
+        { key: 'type', label: 'Type' },
+        { key: 'area', label: 'Area' },
+        { key: 'organization', label: 'Organization' },
+        { key: 'dateObtained', label: 'Date Obtained' },
+      ],
+      courses: [
+        { key: 'academicYear', label: 'Academic Year' },
+        { key: 'semester', label: 'Semester' },
+        { key: 'courseTitle', label: 'Course Title' },
+        { key: 'courseCode', label: 'Course Code' },
+        { key: 'credit', label: 'Credit' },
+        { key: 'studentsCount', label: 'Students Count' },
+      ],
+      research: [
+        { key: 'title', label: 'Title' },
+        { key: 'type', label: 'Type' },
+        { key: 'kind', label: 'Kind' },
+        { key: 'journalOrPublisher', label: 'Journal/Publisher' },
+        { key: 'publicationDate', label: 'Publication Date' },
+      ],
+      scientific: [
+        { key: 'title', label: 'Title' },
+        { key: 'type', label: 'Type' },
+        { key: 'date', label: 'Date' },
+        { key: 'participation', label: 'Participation' },
+        { key: 'venue', label: 'Venue' },
+      ],
+      university: [
+        { key: 'committeeOrTask', label: 'Committee/Task' },
+        { key: 'authority', label: 'Authority' },
+        { key: 'participation', label: 'Participation' },
+        { key: 'dateFrom', label: 'Date From' },
+        { key: 'dateTo', label: 'Date To' },
+      ],
+      community: [
+        { key: 'committeeOrTask', label: 'Committee/Task' },
+        { key: 'authority', label: 'Authority' },
+        { key: 'participation', label: 'Participation' },
+        { key: 'dateFrom', label: 'Date From' },
+        { key: 'dateTo', label: 'Date To' },
+      ],
+    }
+
+    const columns = tableColumns[viewModal.table] || []
+
+    return (
+      <Dialog open={viewModal.open} onOpenChange={() => setViewModal({ open: false, table: '', title: '' })}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>{viewModal.title} - View Achievements</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Selected: {selectedAchievements.size} of {tableData.length} achievements
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    // Select all visible achievements
+                    setSelectedAchievements(new Set(tableData.map((item: any) => item.id)))
+                  }}
+                >
+                  Select All
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedAchievements(new Set())}
+                >
+                  Clear All
+                </Button>
+              </div>
+
+              {/* Average Calculation Display */}
+              {(() => {
+                const average = calculateTableAverage(viewModal.table)
+                return average.band ? (
+                  <div className="p-3 bg-primary/10 border border-primary/20 rounded">
+                    <div className="text-sm font-medium">Calculated Average for {viewModal.title}:</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge className="capitalize">{BAND_LABEL[average.band]}</Badge>
+                      <span className="text-sm">({average.points} points)</span>
+                    </div>
+                  </div>
+                ) : null
+              })()}
+            </div>
+
+            {achievementsLoading ? (
+              <div className="text-center py-8">Loading achievements...</div>
+            ) : tableData.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">No achievements found for this table.</div>
+            ) : (
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">Select</TableHead>
+                      {columns.map(col => (
+                        <TableHead key={col.key}>{col.label}</TableHead>
+                      ))}
+                      <TableHead>Attachment</TableHead>
+                      <TableHead className="w-32">Evaluation</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableData.map((item: any) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedAchievements.has(item.id)}
+                            onCheckedChange={() => toggleAchievementSelection(item.id)}
+                          />
+                        </TableCell>
+                        {columns.map(col => (
+                          <TableCell key={col.key}>
+                            {formatAchievementValue(item[col.key], col.key)}
+                          </TableCell>
+                        ))}
+                        <TableCell>
+                          {item.attachment && (
+                            <a
+                              href={item.attachment}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline"
+                            >
+                              <FolderOpen className="h-4 w-4" />
+                            </a>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {selectedAchievements.has(item.id) && (
+                            <select
+                              className="px-2 py-1 border rounded text-sm w-full"
+                              value={achievementEvaluations[item.id] || ''}
+                              onChange={(e) => evaluateAchievement(item.id, e.target.value as BandKey)}
+                            >
+                              <option value="">Evaluate...</option>
+                              {BAND_ORDER.map(band => (
+                                <option key={band} value={band}>
+                                  {BAND_LABEL[band]}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center pt-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                {selectedAchievements.size > 0 && (
+                  <span>Selected achievements will be considered for evaluation</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setViewModal({ open: false, table: '', title: '' })}
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    applyTableAverage(viewModal.table)
+                  }}
+                  disabled={selectedAchievements.size === 0}
+                >
+                  Apply Average ({selectedAchievements.size} selected)
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* SECTION 1 */}
@@ -1368,10 +1929,10 @@ async function saveAll() {
           </CardContent>
         </Card>
 
-        <PerfCard k="research"   title="1) Research & Scientific Activities" showView />
-        <PerfCard k="university" title="2) University Service" showView />
-        <PerfCard k="community"  title="3) Community Service" showView />
-        <PerfCard k="teaching"   title="4) Quality of Teaching" showView />
+        <PerfCard k="research"   title="1) Research & Scientific Activities" showView showAchievements />
+        <PerfCard k="university" title="2) University Service" showView showAchievements />
+        <PerfCard k="community"  title="3) Community Service" showView showAchievements />
+        <PerfCard k="teaching"   title="4) Quality of Teaching" showView showAchievements />
       </div>
 
       {/* SECTION 2 */}
@@ -1412,6 +1973,10 @@ async function saveAll() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Achievements viewing modal */}
+      <AchievementsModal />
     </div>
   )
 }
+

@@ -4,23 +4,25 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AppraisalForm } from "@/components/appraisal/appraisal-form"
-import { Plus, Eye, Edit, CheckCircle, XCircle, Clock } from "lucide-react"
+import { Eye, CheckCircle, XCircle, Clock, Send, Calculator, User } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-// Using string literals for status values
-type EvaluationStatus = "NEW" | "IN_REVIEW" | "SCORES_SENT" | "COMPLETE" | "RETURNED"
+// Using new enum values
+type EvaluationStatus = "new" | "sent" | "complete" | "returned"
 
-interface Appraisal {
+interface FacultyAppraisal {
   id: string
   academicYear: string
   status: EvaluationStatus
   finalScore?: number
   submittedAt?: string
-  evaluatedAt?: string
-  completedAt?: string
-  evaluator?: {
-    firstName: string
-    lastName: string
+  faculty: {
+    id: string
+    name: string
+    email: string
+  }
+  cycle: {
+    academicYear: string
+    semester: string
   }
   evaluations: any[]
   _count: {
@@ -34,65 +36,39 @@ interface Appraisal {
   }
 }
 
-export default function FacultyAppraisalPage() {
-  const [appraisals, setAppraisals] = useState<Appraisal[]>([])
+export default function HODAppraisalPage() {
+  const [appraisals, setAppraisals] = useState<FacultyAppraisal[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [selectedAppraisal, setSelectedAppraisal] = useState<Appraisal | null>(null)
-  const [isCreating, setIsCreating] = useState(false)
+  const [showEvaluationForm, setShowEvaluationForm] = useState(false)
+  const [selectedAppraisal, setSelectedAppraisal] = useState<FacultyAppraisal | null>(null)
 
   useEffect(() => {
-    fetchAppraisals()
+    fetchFacultyAppraisals()
   }, [])
 
-  const fetchAppraisals = async () => {
+  const fetchFacultyAppraisals = async () => {
     try {
-      const response = await fetch("/api/appraisals")
+      const response = await fetch("/api/hod/appraisals")
       if (response.ok) {
         const data = await response.json()
         setAppraisals(data)
       }
     } catch (error) {
-      console.error("Error fetching appraisals:", error)
+      console.error("Error fetching faculty appraisals:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const createAppraisal = async () => {
-    setIsCreating(true)
-    try {
-      const response = await fetch("/api/appraisals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ academicYear: new Date().getFullYear().toString() }),
-      })
-
-      if (response.ok) {
-        fetchAppraisals()
-      } else {
-        const data = await response.json()
-        alert(data.error || "Failed to create appraisal")
-      }
-    } catch (error) {
-      console.error("Error creating appraisal:", error)
-      alert("Failed to create appraisal")
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "NEW":
-        return <Edit className="h-4 w-4" />
-      case "IN_REVIEW":
+      case "new":
         return <Clock className="h-4 w-4" />
-      case "SCORES_SENT":
-        return <Clock className="h-4 w-4" />
-      case "COMPLETE":
+      case "sent":
+        return <Send className="h-4 w-4" />
+      case "complete":
         return <CheckCircle className="h-4 w-4" />
-      case "RETURNED":
+      case "returned":
         return <XCircle className="h-4 w-4" />
       default:
         return <Clock className="h-4 w-4" />
@@ -101,19 +77,25 @@ export default function FacultyAppraisalPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "NEW":
+      case "new":
         return "bg-blue-100 text-blue-800"
-      case "IN_REVIEW":
-        return "bg-yellow-100 text-yellow-800"
-      case "SCORES_SENT":
+      case "sent":
         return "bg-orange-100 text-orange-800"
-      case "COMPLETE":
+      case "complete":
         return "bg-green-100 text-green-800"
-      case "RETURNED":
+      case "returned":
         return "bg-red-100 text-red-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
+  }
+
+  const canEvaluate = (status: string) => {
+    return status === "new"
+  }
+
+  const canSendScores = (status: string) => {
+    return status === "new"
   }
 
   if (isLoading) {
@@ -124,13 +106,9 @@ export default function FacultyAppraisalPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">My Appraisals</h1>
-          <p className="text-muted-foreground">Manage your performance appraisals</p>
+          <h1 className="text-3xl font-bold text-foreground">Faculty Appraisals</h1>
+          <p className="text-muted-foreground">Review and evaluate faculty performance</p>
         </div>
-        <Button onClick={createAppraisal} disabled={isCreating} className="bg-accent text-accent-foreground">
-          <Plus className="mr-2 h-4 w-4" />
-          New Appraisal
-        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -138,7 +116,10 @@ export default function FacultyAppraisalPage() {
           <Card key={appraisal.id} className="bg-card">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-card-foreground">Academic Year {appraisal.academicYear}</CardTitle>
+                <CardTitle className="text-card-foreground flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  {appraisal.faculty.name}
+                </CardTitle>
                 <Badge className={getStatusColor(appraisal.status)}>
                   <div className="flex items-center gap-1">
                     {getStatusIcon(appraisal.status)}
@@ -146,6 +127,9 @@ export default function FacultyAppraisalPage() {
                   </div>
                 </Badge>
               </div>
+              <CardDescription>
+                {appraisal.cycle.academicYear} - {appraisal.cycle.semester}
+              </CardDescription>
               <CardDescription>
                 Awards: {appraisal._count.awards} | Courses: {appraisal._count.courses} | Research: {appraisal._count.researchActivities} | Scientific: {appraisal._count.scientificActivities} | Services: {appraisal._count.universityServices + appraisal._count.communityServices} | Evidence: {appraisal._count.evidences}
               </CardDescription>
@@ -158,38 +142,26 @@ export default function FacultyAppraisalPage() {
                 </div>
               )}
 
-              {appraisal.evaluator && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Evaluator:</span>
-                  <span className="text-sm">
-                    {appraisal.evaluator.firstName} {appraisal.evaluator.lastName}
-                  </span>
-                </div>
-              )}
-
               <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
                     setSelectedAppraisal(appraisal)
-                    setShowForm(true)
+                    setShowEvaluationForm(true)
                   }}
                   className="flex-1"
+                  disabled={!canEvaluate(appraisal.status)}
                 >
                   <Eye className="mr-2 h-4 w-4" />
-                  {appraisal.status === "NEW" ? "Edit" : "View"}
+                  {canEvaluate(appraisal.status) ? "Evaluate" : "View"}
                 </Button>
 
-                {appraisal.status === "IN_REVIEW" && (
-                  <div className="flex gap-1">
-                    <Button size="sm" className="bg-green-600 text-white hover:bg-green-700">
-                      Approve
-                    </Button>
-                    <Button size="sm" variant="destructive">
-                      Appeal
-                    </Button>
-                  </div>
+                {canSendScores(appraisal.status) && (
+                  <Button size="sm" className="bg-blue-600 text-white hover:bg-blue-700">
+                    <Calculator className="mr-2 h-4 w-4" />
+                    Send Scores
+                  </Button>
                 )}
               </div>
             </CardContent>
@@ -200,35 +172,45 @@ export default function FacultyAppraisalPage() {
       {appraisals.length === 0 && (
         <Card className="bg-card">
           <CardContent className="text-center py-12">
-            <p className="text-muted-foreground mb-4">No appraisals found</p>
-            <Button onClick={createAppraisal} disabled={isCreating} className="bg-accent text-accent-foreground">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Your First Appraisal
-            </Button>
+            <p className="text-muted-foreground mb-4">No faculty appraisals to review</p>
+            <p className="text-sm text-muted-foreground">
+              Faculty appraisals will appear here once they submit their achievements for evaluation.
+            </p>
           </CardContent>
         </Card>
       )}
 
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={showEvaluationForm} onOpenChange={setShowEvaluationForm}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Appraisal - Academic Year {selectedAppraisal?.academicYear}</DialogTitle>
+            <DialogTitle>
+              Evaluate {selectedAppraisal?.faculty.name} - {selectedAppraisal?.cycle.academicYear}
+            </DialogTitle>
             <DialogDescription>
-              {selectedAppraisal?.status === "NEW"
-                ? "Complete your self-evaluation"
-                : "View your appraisal details"}
+              Review achievements and provide evaluation scores
             </DialogDescription>
           </DialogHeader>
           {selectedAppraisal && (
-            <AppraisalForm
-              appraisalId={selectedAppraisal.id}
-              isReadOnly={selectedAppraisal.status !== "NEW"}
-              evaluations={selectedAppraisal.evaluations}
-              onSave={() => {
-                setShowForm(false)
-                fetchAppraisals()
-              }}
-            />
+            <div className="mt-4">
+              <div className="mb-4 p-4 bg-muted rounded-lg">
+                <h3 className="font-semibold mb-2">Faculty Information</h3>
+                <p><strong>Name:</strong> {selectedAppraisal.faculty.name}</p>
+                <p><strong>Email:</strong> {selectedAppraisal.faculty.email}</p>
+                <p><strong>Academic Year:</strong> {selectedAppraisal.cycle.academicYear}</p>
+                <p><strong>Semester:</strong> {selectedAppraisal.cycle.semester}</p>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                This is where the evaluation form would be rendered. The HOD can review all achievements and provide scores for different categories.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowEvaluationForm(false)}>
+                  Close
+                </Button>
+                <Button className="bg-accent text-accent-foreground">
+                  Save Evaluation
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

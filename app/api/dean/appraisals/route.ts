@@ -32,7 +32,7 @@ const collegeId =
   me?.department?.collegeId
 
     const cycles = await prisma.appraisalCycle.findMany({
-      orderBy: [{ academicYear: 'desc' }, { semester: 'desc' }],
+      orderBy: [{ academicYear: 'desc' }],
     })
     if (!collegeId) {
       return NextResponse.json({ appraisals: [], cycles })

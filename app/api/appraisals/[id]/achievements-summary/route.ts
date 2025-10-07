@@ -43,14 +43,30 @@ export async function GET(
       ? appraisal.courses.reduce((sum, course) => sum + (course.studentsEvalAvg || 0), 0) / appraisal.courses.length
       : 0
 
+    // Fetch all achievements for this appraisal
+    const [
+      awards,
+      courses,
+      research,
+      scientific,
+      university,
+      community,
+    ] = await Promise.all([
+      prisma.award.findMany({ where: { appraisalId }, orderBy: { id: "desc" } }),
+      prisma.courseTaught.findMany({ where: { appraisalId }, orderBy: { id: "desc" } }),
+      prisma.researchActivity.findMany({ where: { appraisalId }, orderBy: { id: "desc" } }),
+      prisma.scientificActivity.findMany({ where: { appraisalId }, orderBy: { id: "desc" } }),
+      prisma.universityService.findMany({ where: { appraisalId }, orderBy: { id: "desc" } }),
+      prisma.communityService.findMany({ where: { appraisalId }, orderBy: { id: "desc" } }),
+    ])
+
     return NextResponse.json({
-      research: researchCounts,
-      universityService: universityServiceCount,
-      communityService: communityServiceCount,
-      teaching: {
-        average: teachingAvg,
-        courseCount: appraisal.courses.length
-      }
+      awards,
+      courses,
+      research,
+      scientific,
+      university,
+      community,
     })
   } catch (error) {
     console.error('Error fetching achievements summary:', error)

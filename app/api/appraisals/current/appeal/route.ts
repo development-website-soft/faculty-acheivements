@@ -12,9 +12,9 @@ const { message } = await req.json().catch(()=>({}))
 const cycle = await prisma.appraisalCycle.findFirst({ where: { isActive: true } })
 if (!cycle) return NextResponse.json({ error:'No active cycle' }, { status: 400 })
 const app = await prisma.appraisal.findFirst({ where: { cycleId: cycle.id, facultyId: parseInt(user.id) } })
-if (!app || app.status !== 'SCORES_SENT') return NextResponse.json({ error:'Not actionable' }, { status: 400 })
+if (!app || app.status !== 'sent') return NextResponse.json({ error:'Not actionable' }, { status: 400 })
 await prisma.$transaction([
-prisma.appraisal.update({ where: { id: app.id }, data: { status: 'RETURNED' } }),
+prisma.appraisal.update({ where: { id: app.id }, data: { status: 'returned' } }),
 prisma.appeal.create({ data: { appraisalId: app.id, byUserId: parseInt(user.id), message: message ?? '' } })
 ])
 return NextResponse.json({ ok:true })

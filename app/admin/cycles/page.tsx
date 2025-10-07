@@ -13,16 +13,15 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Calendar, CheckCircle, Lock, Copy } from "lucide-react"
 
 interface AppraisalCycle {
-  id: number
-  academicYear: string
-  semester: string
-  startDate: string
-  endDate: string
-  isActive: boolean
-  _count: {
-    appraisals: number
-  }
-}
+   id: number
+   academicYear: string
+   startDate: string
+   endDate: string
+   isActive: boolean
+   _count: {
+     appraisals: number
+   }
+ }
 
 export default function CyclesPage() {
   const [cycles, setCycles] = useState<AppraisalCycle[]>([])
@@ -83,7 +82,6 @@ export default function CyclesPage() {
 
   const handleCreateCycle = async (formData: FormData) => {
     const academicYear = formData.get("academicYear") as string
-    const semester = formData.get("semester") as string
     const startDate = formData.get("startDate") as string
     const endDate = formData.get("endDate") as string
 
@@ -91,7 +89,7 @@ export default function CyclesPage() {
       const response = await fetch("/api/admin/appraisal-cycles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ academicYear, semester, startDate, endDate }),
+        body: JSON.stringify({ academicYear, startDate, endDate }),
       })
 
       if (response.ok) {
@@ -139,7 +137,6 @@ export default function CyclesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Academic Year</TableHead>
-                <TableHead>Semester</TableHead>
                 <TableHead>Active?</TableHead>
                 <TableHead>Start/End</TableHead>
                 <TableHead>Appraisals</TableHead>
@@ -150,7 +147,6 @@ export default function CyclesPage() {
               {cycles.map((cycle) => (
                 <TableRow key={cycle.id}>
                   <TableCell className="font-medium">{cycle.academicYear}</TableCell>
-                  <TableCell>{cycle.semester}</TableCell>
                   <TableCell>
                     {cycle.isActive ? (
                       <Badge className="bg-green-100 text-green-800">Active</Badge>
@@ -211,19 +207,6 @@ export default function CyclesPage() {
               <Input id="academicYear" name="academicYear" placeholder="2024/2025" required />
             </div>
             <div>
-              <Label htmlFor="semester">Semester</Label>
-              <Select name="semester" required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select semester" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FALL">Fall</SelectItem>
-                  <SelectItem value="SPRING">Spring</SelectItem>
-                  <SelectItem value="SUMMER">Summer</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
               <Label htmlFor="startDate">Start Date</Label>
               <Input id="startDate" name="startDate" type="date" required />
             </div>
@@ -247,7 +230,7 @@ export default function CyclesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Set Active Cycle</AlertDialogTitle>
             <AlertDialogDescription>
-              This will set "{settingActive?.academicYear} - {settingActive?.semester}" as the active cycle.
+              This will set "{settingActive?.academicYear}" as the active cycle.
               Only one cycle can be active at a time. Continue?
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -268,7 +251,7 @@ export default function CyclesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Lock Cycle</AlertDialogTitle>
             <AlertDialogDescription>
-              This will lock "{lockingCycle?.academicYear} - {lockingCycle?.semester}" preventing new edits.
+              This will lock "{lockingCycle?.academicYear}" preventing new edits.
               Continue?
             </AlertDialogDescription>
           </AlertDialogHeader>

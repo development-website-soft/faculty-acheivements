@@ -3,10 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-type ResKey = "awards" | "courses" | "research" | "scientific" | "university" | "community";
+type ResKey = "awards" | "courses" | "research" | "scientific" | "university" | "community" | "achievements";
 
 function isAllowedResource(x: string): x is ResKey {
-  return ["awards", "courses", "research", "scientific", "university", "community"].includes(x);
+  return ["awards", "courses", "research", "scientific", "university", "community", "achievements"].includes(x);
 }
 
 function toDateOrNull(v: any) {
@@ -44,6 +44,39 @@ function sanitizePayload(resource: ResKey, body: Record<string, any>) {
     }
   }
 
+  // Normalize ResearchActivityType enum values
+  if (b.type) {
+    const researchTypeMap: Record<string, string> = {
+      "journal": "JOURNAL",
+      "conference": "CONFERENCE",
+      "other": "OTHER"
+    };
+    const normalizedType = researchTypeMap[b.type.toLowerCase()];
+    if (normalizedType) {
+      b.type = normalizedType;
+    }
+  }
+
+  // Normalize ResearchKind enum values
+  if (b.kind) {
+    const researchKindMap: Record<string, string> = {
+      "accepted": "ACCEPTED",
+      "published": "PUBLISHED",
+      "in_process": "IN_PROCESS",
+      "arbitration": "ARBITRATION",
+      "thesis_supervision": "THESIS_SUPERVISION",
+      "funded_project": "FUNDED_PROJECT",
+      "contractual_research": "CONTRACTUAL_RESEARCH",
+      "registered_patent": "REGISTERED_PATENT",
+      "refereed_paper": "REFEREED_PAPER",
+      "other": "OTHER"
+    };
+    const normalizedKind = researchKindMap[b.kind.toLowerCase()];
+    if (normalizedKind) {
+      b.kind = normalizedKind;
+    }
+  }
+
   return b;
 }
 
@@ -55,6 +88,7 @@ function delegateByResource(resource: ResKey) {
     case "scientific":  return prisma.scientificActivity;
     case "university":  return prisma.universityService;
     case "community":   return prisma.communityService;
+    case "achievements": return prisma.award;
   }
 }
 
@@ -87,7 +121,7 @@ export async function POST(req: NextRequest, { params }: { params: { resource: s
     });
     if (!appraisal) {
       appraisal = await prisma.appraisal.create({
-        data: { facultyId: Number(user.id), cycleId: cycle.id, status: "NEW" },
+        data: { facultyId: Number(user.id), cycleId: cycle.id, status: "new" },
       });
     }
 

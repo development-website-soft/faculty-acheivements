@@ -5,10 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { AppraisalForm } from "@/components/appraisal/appraisal-form"
-import { Plus, Eye, Edit, CheckCircle, XCircle, Clock } from "lucide-react"
+import { Plus, Eye, Edit, CheckCircle, XCircle, Clock, Send } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-// Using string literals for status values
-type EvaluationStatus = "NEW" | "IN_REVIEW" | "SCORES_SENT" | "COMPLETE" | "RETURNED"
+// Using new enum values
+type EvaluationStatus = "new" | "sent" | "complete" | "returned"
 
 interface Appraisal {
   id: string
@@ -84,15 +84,13 @@ export default function FacultyAppraisalPage() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "NEW":
+      case "new":
         return <Edit className="h-4 w-4" />
-      case "IN_REVIEW":
-        return <Clock className="h-4 w-4" />
-      case "SCORES_SENT":
-        return <Clock className="h-4 w-4" />
-      case "COMPLETE":
+      case "sent":
+        return <Send className="h-4 w-4" />
+      case "complete":
         return <CheckCircle className="h-4 w-4" />
-      case "RETURNED":
+      case "returned":
         return <XCircle className="h-4 w-4" />
       default:
         return <Clock className="h-4 w-4" />
@@ -101,15 +99,13 @@ export default function FacultyAppraisalPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "NEW":
+      case "new":
         return "bg-blue-100 text-blue-800"
-      case "IN_REVIEW":
-        return "bg-yellow-100 text-yellow-800"
-      case "SCORES_SENT":
+      case "sent":
         return "bg-orange-100 text-orange-800"
-      case "COMPLETE":
+      case "complete":
         return "bg-green-100 text-green-800"
-      case "RETURNED":
+      case "returned":
         return "bg-red-100 text-red-800"
       default:
         return "bg-gray-100 text-gray-800"
@@ -178,10 +174,10 @@ export default function FacultyAppraisalPage() {
                   className="flex-1"
                 >
                   <Eye className="mr-2 h-4 w-4" />
-                  {appraisal.status === "NEW" ? "Edit" : "View"}
+                  {appraisal.status === "new" ? "Edit" : "View"}
                 </Button>
 
-                {appraisal.status === "IN_REVIEW" && (
+                {appraisal.status === "sent" && (
                   <div className="flex gap-1">
                     <Button size="sm" className="bg-green-600 text-white hover:bg-green-700">
                       Approve
@@ -214,7 +210,7 @@ export default function FacultyAppraisalPage() {
           <DialogHeader>
             <DialogTitle>Appraisal - Academic Year {selectedAppraisal?.academicYear}</DialogTitle>
             <DialogDescription>
-              {selectedAppraisal?.status === "NEW"
+              {selectedAppraisal?.status === "new"
                 ? "Complete your self-evaluation"
                 : "View your appraisal details"}
             </DialogDescription>
@@ -222,7 +218,7 @@ export default function FacultyAppraisalPage() {
           {selectedAppraisal && (
             <AppraisalForm
               appraisalId={selectedAppraisal.id}
-              isReadOnly={selectedAppraisal.status !== "NEW"}
+              isReadOnly={selectedAppraisal.status !== "new"}
               evaluations={selectedAppraisal.evaluations}
               onSave={() => {
                 setShowForm(false)

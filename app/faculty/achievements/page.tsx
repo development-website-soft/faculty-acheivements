@@ -19,9 +19,9 @@ orderBy: { id: 'desc' },
 
 
 const cycles = appraisals.map(a => ({
-id: a.id,
-label: `${a.cycle?.academicYear ?? ''} ${a.cycle?.semester ?? ''}`.trim() || String(a.id),
-status: a.status,
+ id: a.id,
+ label: `${a.cycle?.academicYear ?? ''}`.trim() || String(a.id),
+ status: a.status,
 }))
 
 

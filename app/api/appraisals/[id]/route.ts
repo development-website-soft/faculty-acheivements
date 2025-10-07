@@ -24,10 +24,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             name: true,
             email: true,
             role: true,
+            departmentId: true,
             department: {
               select: {
+                id: true,
                 name: true,
-                college: { select: { name: true } }
+                collegeId: true,
+                college: { select: { id: true, name: true } }
               }
             }
           },
@@ -35,7 +38,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         cycle: {
           select: {
             academicYear: true,
-            semester: true
+            startDate: true,
+            endDate: true,
+            isActive: true
           }
         },
         evaluations: true,
@@ -55,12 +60,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Check permissions
     const canView =
-      session.user.id === appraisal.facultyId ||
+      session.user.id === appraisal.facultyId.toString() ||
       (session.user.role === UserRole.HOD &&
-        session.user.departmentId === appraisal.faculty?.departmentId) ||
+        session.user.departmentId === appraisal.faculty?.departmentId?.toString()) ||
       (session.user.role === UserRole.DEAN &&
-        session.user.departmentId &&
-        appraisal.faculty?.department?.collegeId === session.user.department?.collegeId) ||
+        session.user.collegeId &&
+        appraisal.faculty?.department?.collegeId?.toString() === session.user.collegeId) ||
       session.user.role === UserRole.ADMIN
 
     if (!canView) {
@@ -70,6 +75,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json(appraisal)
   } catch (error) {
     console.error("Error fetching appraisal:", error)
+
+    // Handle specific Prisma errors
+    if (error instanceof Error) {
+      if (error.message.includes("Connection timeout") || error.message.includes("connection pool")) {
+        return NextResponse.json({
+          error: "Database connection error. Please try again in a moment."
+        }, { status: 503 })
+      }
+    }
+
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
@@ -90,7 +105,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const appraisal = await prisma.appraisal.findUnique({
       where: { id: appraisalId },
       include: {
-        faculty: true,
+        faculty: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            departmentId: true,
+            department: {
+              select: {
+                id: true,
+                name: true,
+                collegeId: true,
+                college: { select: { id: true, name: true } }
+              }
+            }
+          },
+        },
         evaluations: true,
       },
     })
@@ -100,9 +131,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Permission checks
-    const isFaculty = session.user.id === appraisal.facultyId
-    const isHod = session.user.role === UserRole.HOD && session.user.departmentId === appraisal.faculty?.departmentId
-    const isDean = session.user.role === UserRole.DEAN && session.user.departmentId && appraisal.faculty?.department?.collegeId === session.user.department?.collegeId
+    const isFaculty = session.user.id === appraisal.facultyId.toString()
+    const isHod = session.user.role === UserRole.HOD && session.user.departmentId === appraisal.faculty?.departmentId?.toString()
+    const isDean = session.user.role === UserRole.DEAN && session.user.collegeId && appraisal.faculty?.department?.collegeId?.toString() === session.user.collegeId
     const isAdmin = session.user.role === UserRole.ADMIN
 
     let updateData: any = {}
@@ -113,7 +144,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           return NextResponse.json({ error: "Access denied" }, { status: 403 })
         }
         updateData = {
-          status: EvaluationStatus.SCORES_SENT,
+          status: EvaluationStatus.sent,
           submittedAt: new Date(),
         }
         break
@@ -127,44 +158,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         let totalScore = 0
         let totalWeight = 0
 
-        if (evaluations && evaluations.length > 0) {
-          for (const evaluation of evaluations) {
-            await prisma.criteriaEvaluation.upsert({
-              where: {
-                appraisalId_criteriaId: {
-                  appraisalId: appraisalId,
-                  criteriaId: evaluation.criteriaId,
-                },
-              },
-              update: {
-                finalPoints: evaluation.finalPoints,
-                comments: evaluation.comments,
-              },
-              create: {
-                appraisalId: appraisalId,
-                criteriaId: evaluation.criteriaId,
-                finalPoints: evaluation.finalPoints,
-                comments: evaluation.comments,
-              },
-            })
-
-            const criteria = await prisma.evaluationCriteria.findUnique({
-              where: { id: evaluation.criteriaId },
-            })
-
-            if (criteria) {
-              const percentage = (evaluation.finalPoints / criteria.maxPoints) * 100
-              totalScore += percentage * (criteria.weight / 100)
-              totalWeight += criteria.weight
-            }
-          }
-        }
+        // TODO: Implement criteria evaluation logic when CriteriaEvaluation and EvaluationCriteria models are added to schema
+        // if (evaluations && evaluations.length > 0) {
+        //   for (const evaluation of evaluations) {
+        //     // Criteria evaluation logic here
+        //   }
+        // }
 
         updateData = {
           evaluatorId: session.user.id,
           finalScore: totalWeight > 0 ? totalScore : null,
           comments,
-          status: EvaluationStatus.SCORES_SENT,
+          status: EvaluationStatus.sent,
           evaluatedAt: new Date(),
         }
         break
@@ -174,7 +179,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           return NextResponse.json({ error: "Access denied" }, { status: 403 })
         }
         updateData = {
-          status: EvaluationStatus.COMPLETE,
+          status: EvaluationStatus.complete,
           completedAt: new Date(),
         }
         break
@@ -184,7 +189,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           return NextResponse.json({ error: "Access denied" }, { status: 403 })
         }
         updateData = {
-          status: EvaluationStatus.RETURNED,
+          status: EvaluationStatus.returned,
           appealReason,
         }
         break
@@ -204,27 +209,42 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           },
         },
         evaluations: true,
+        cycle: {
+          select: {
+            academicYear: true,
+          },
+        },
       },
     })
 
-    // Create notification
-    if (["evaluate", "approve", "appeal"].includes(action)) {
-      const notificationUserId = action === "evaluate" ? appraisal.facultyId : updatedAppraisal.evaluations.find(e => e.role === (isDean ? UserRole.HOD : UserRole.DEAN))?.appraisalId
-      if (notificationUserId) {
-        await prisma.notification.create({
-          data: {
-            userId: notificationUserId,
-            title: `Appraisal ${action.charAt(0).toUpperCase() + action.slice(1)}`,
-            message: `Your appraisal for ${updatedAppraisal.cycle.academicYear} has been ${action}.`,
-            type: `APPRAISAL_${action.toUpperCase()}`,
-          },
-        })
-      }
-    }
+    // TODO: Create notification when Notification model is added to schema
+    // if (["evaluate", "approve", "appeal"].includes(action)) {
+    //   const notificationUserId = action === "evaluate" ? appraisal.facultyId : updatedAppraisal.evaluations.find(e => e.role === (isDean ? UserRole.HOD : UserRole.DEAN))?.appraisalId
+    //   if (notificationUserId) {
+    //     await prisma.notification.create({
+    //       data: {
+    //         userId: notificationUserId,
+    //         title: `Appraisal ${action.charAt(0).toUpperCase() + action.slice(1)}`,
+    //         message: `Your appraisal for ${updatedAppraisal.cycle.academicYear} has been ${action}.`,
+    //         type: `APPRAISAL_${action.toUpperCase()}`,
+    //       },
+    //     })
+    //   }
+    // }
 
     return NextResponse.json(updatedAppraisal)
   } catch (error) {
     console.error("Error updating appraisal:", error)
+
+    // Handle specific Prisma errors
+    if (error instanceof Error) {
+      if (error.message.includes("Connection timeout") || error.message.includes("connection pool")) {
+        return NextResponse.json({
+          error: "Database connection error. Please try again in a moment."
+        }, { status: 503 })
+      }
+    }
+
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

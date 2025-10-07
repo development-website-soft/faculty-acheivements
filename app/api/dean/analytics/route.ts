@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     // const collegeId = (me as any)?.collegeId ?? me?.department?.collegeId
     const collegeId = me?.department?.collegeId
     const cycles = await prisma.appraisalCycle.findMany({
-      orderBy: [{ academicYear: 'desc' }, { semester: 'desc' }],
+      orderBy: [{ academicYear: 'desc' }],
     })
 
     if (!collegeId) {
@@ -42,9 +42,9 @@ export async function GET(req: Request) {
       select: { totalScore: true, status: true },
     })
     const total = collegeApps.length
-    const sentCount = collegeApps.filter(a => a.status === 'SCORES_SENT').length
-    const completeCount = collegeApps.filter(a => a.status === 'COMPLETE').length
-    const returnedCount = collegeApps.filter(a => a.status === 'RETURNED').length
+    const sentCount = collegeApps.filter(a => a.status === 'sent').length
+    const completeCount = collegeApps.filter(a => a.status === 'complete').length
+    const returnedCount = collegeApps.filter(a => a.status === 'returned').length
     const completionRate = total ? completeCount / total : 0
     const avgTotal = avg(collegeApps.map(a => a.totalScore ?? 0))
 
@@ -91,7 +91,7 @@ export async function GET(req: Request) {
           where: { cycleId: c.id, faculty: { role: 'INSTRUCTOR', department: { collegeId: Number(collegeId) } } },
           select: { totalScore: true },
         })
-        return { label: `${c.academicYear}-${c.semester}`, avgTotal: avg(apps.map(x => x.totalScore ?? 0)) }
+        return { label: `${c.academicYear}`, avgTotal: avg(apps.map(x => x.totalScore ?? 0)) }
       })
     )
 

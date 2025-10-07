@@ -1,11 +1,30 @@
-import AchievementsScreen from "@/components/achievements/AchievementsScreen"
+import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import HODPersonalAchievementsScreen from './screen'
 
+export default async function HODPersonalAchievementsPage(){
+  const session = await getServerSession(authOptions)
+  const user = session?.user as any
+  if (!user) redirect('/login')
 
-export default function Page(){
-return (
-<div className="space-y-6 p-6">
-<h1 className="text-xl font-semibold">Achievements</h1>
-<AchievementsScreen />
-</div>
-)
+  const appraisals = await prisma.appraisal.findMany({
+    where: { facultyId: parseInt(user.id) },
+    include: { cycle: true },
+    orderBy: { id: 'desc' },
+  })
+
+  const cycles = appraisals.map(a => ({
+    id: a.id,
+    label: `${a.cycle?.academicYear ?? ''}`.trim() || String(a.id),
+    status: a.status,
+  }))
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-xl font-semibold">My Achievements (All Cycles)</h1>
+      <HODPersonalAchievementsScreen cycles={cycles} />
+    </div>
+  )
 }

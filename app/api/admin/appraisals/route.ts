@@ -44,7 +44,9 @@ const appraisals = await prisma.appraisal.findMany({
     cycle: {
       select: {
         academicYear: true,
-        semester: true,
+        startDate: true,
+        endDate: true,
+        isActive: true,
       },
     },
   },

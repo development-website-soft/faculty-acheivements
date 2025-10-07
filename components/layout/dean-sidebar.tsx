@@ -15,6 +15,7 @@ const deanNavItems = [
   { href: "/dean/appraisals", icon: ClipboardList, label: "Appraisal List" },
   { href: "/dean/achievements", icon: Award, label: "Faculty Achievements" },
   { href: "/dean/analytics", icon: History, label: "Analytics" },
+  { href: "/dean/reports", icon: FileText, label: "Reports" },
 
 ]
 

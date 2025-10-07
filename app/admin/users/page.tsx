@@ -7,20 +7,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { UserForm } from "@/components/admin/user-form"
 import { Plus, Edit, Trash2, Users, Upload, Search } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogBody,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+   AlertDialog,
+   AlertDialogAction,
+   AlertDialogCancel,
+   AlertDialogContent,
+   AlertDialogDescription,
+   AlertDialogFooter,
+   AlertDialogHeader,
+   AlertDialogTitle,
+ } from "@/components/ui/alert-dialog"
 
 interface User {
   id: number
@@ -53,6 +53,7 @@ export default function UsersPage() {
   const [departmentFilter, setDepartmentFilter] = useState<string>("ALL")
   const [colleges, setColleges] = useState<{id: number, name: string}[]>([])
   const [departments, setDepartments] = useState<{id: number, name: string, collegeId: number}[]>([])
+  const [showBulkImport, setShowBulkImport] = useState(false)
 
   const fetchUsers = async () => {
     try {
@@ -143,7 +144,7 @@ export default function UsersPage() {
           <p className="text-muted-foreground">Manage accounts and role assignments</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setShowBulkImport(true)}>
             <Upload className="mr-2 h-4 w-4" />
             Bulk Import
           </Button>
@@ -187,17 +188,6 @@ export default function UsersPage() {
               <SelectItem value="INACTIVE">Disabled</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={collegeFilter} onValueChange={setCollegeFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="College" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All Colleges</SelectItem>
-              {colleges.map(college => (
-                <SelectItem key={college.id} value={college.id.toString()}>{college.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
             <SelectTrigger>
               <SelectValue placeholder="Department" />
@@ -226,6 +216,7 @@ export default function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Profile Image</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
@@ -239,13 +230,21 @@ export default function UsersPage() {
             <TableBody>
               {filteredUsers.map((user) => (
                 <TableRow key={user.id}>
+                  <TableCell>
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={user.image} alt={user.name} />
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </TableCell>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">{user.role}</Badge>
                   </TableCell>
                   <TableCell>
-                    {user.role === 'DEAN' ? user.department?.college.name : "-"}
+                    {user.department?.college.name}
                   </TableCell>
                   <TableCell>
                     {user.role !== 'DEAN' ? user.department?.name : "-"}
@@ -328,6 +327,118 @@ export default function UsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Import Dialog */}
+      <Dialog open={showBulkImport} onOpenChange={setShowBulkImport}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Bulk Import Users</DialogTitle>
+            <DialogDescription>
+              Upload a CSV file to import multiple users at once. The CSV should contain the following columns: email, name, role, department, college, status, and optional fields.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+              <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-lg font-medium mb-2">Upload CSV File</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Select a CSV file with user data. Maximum file size: 5MB.
+              </p>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                      alert("File size must be less than 5MB")
+                      return
+                    }
+
+                    try {
+                      const text = await file.text()
+                      const lines = text.split('\n').filter(line => line.trim())
+                      const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+
+                      // Validate required headers
+                      const requiredHeaders = ['email', 'name', 'role']
+                      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h))
+
+                      if (missingHeaders.length > 0) {
+                        alert(`Missing required columns: ${missingHeaders.join(', ')}`)
+                        return
+                      }
+
+                      const users = lines.slice(1).map((line, index) => {
+                        const values = line.split(',').map(v => v.trim())
+                        const user: any = {}
+
+                        headers.forEach((header, i) => {
+                          if (values[i]) {
+                            user[header] = values[i]
+                          }
+                        })
+
+                        return user
+                      }).filter(user => user.email && user.name && user.role)
+
+                      if (users.length === 0) {
+                        alert("No valid users found in CSV file")
+                        return
+                      }
+
+                      // Send to API
+                      const response = await fetch('/api/admin/users/bulk-import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ users }),
+                      })
+
+                      if (response.ok) {
+                        const result = await response.json()
+                        alert(`Successfully imported ${result.imported} users. ${result.failed} failed.`)
+                        setShowBulkImport(false)
+                        fetchUsers()
+                      } else {
+                        const error = await response.json()
+                        alert(`Import failed: ${error.error}`)
+                      }
+                    } catch (error) {
+                      console.error('Error processing file:', error)
+                      alert('Error processing file')
+                    }
+                  }
+                }}
+                className="hidden"
+                id="csv-upload"
+              />
+              <label htmlFor="csv-upload">
+                <Button variant="outline" className="cursor-pointer">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Select CSV File
+                </Button>
+              </label>
+            </div>
+
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium mb-2">CSV Format Requirements:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Required columns: email, name, role</li>
+                <li>Optional columns: status, department, college, idNumber, academicRank, nationality, generalSpecialization, specificSpecialization</li>
+                <li>Email must end with @uob.edu</li>
+                <li>Role must be: ADMIN, DEAN, HOD, or INSTRUCTOR</li>
+                <li>Status must be: ACTIVE or INACTIVE (default: ACTIVE)</li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowBulkImport(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

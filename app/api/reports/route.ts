@@ -53,49 +53,65 @@ export async function GET(request: NextRequest) {
 async function generateAppraisalsReport(session: any, academicYear?: string | null, userId?: string | null) {
   const whereClause: any = {}
 
-  // Role-based filtering
-  if (session.user.role === UserRole.FACULTY) {
-    whereClause.userId = session.user.id
+  // Role-based filtering using proper relationships
+  if (session.user.role === UserRole.INSTRUCTOR) {
+    whereClause.facultyId = parseInt(session.user.id)
   } else if (session.user.role === UserRole.HOD) {
-    whereClause.collegeId = session.user.collegeId
-    whereClause.majorId = session.user.majorId
+    // HOD can see appraisals from their department
+    whereClause.faculty = {
+      departmentId: parseInt(session.user.departmentId || '0')
+    }
   } else if (session.user.role === UserRole.DEAN) {
-    whereClause.collegeId = session.user.collegeId
+    // DEAN can see appraisals from their college
+    whereClause.faculty = {
+      department: {
+        collegeId: parseInt(session.user.collegeId || '0')
+      }
+    }
   }
 
-  if (academicYear) whereClause.academicYear = academicYear
-  if (userId) whereClause.userId = userId
+  if (academicYear) whereClause.cycle = { academicYear }
+  if (userId) whereClause.facultyId = parseInt(userId)
 
   const appraisals = await prisma.appraisal.findMany({
     where: whereClause,
     include: {
-      user: {
+      faculty: {
         select: {
-          firstName: true,
-          lastName: true,
+          id: true,
+          name: true,
           email: true,
           role: true,
-          major: { select: { name: true } },
+          department: {
+            select: {
+              id: true,
+              name: true,
+              college: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          }
         },
       },
-      evaluator: {
+      cycle: {
         select: {
-          firstName: true,
-          lastName: true,
-        },
+          academicYear: true,
+          startDate: true,
+          endDate: true,
+        }
       },
-      evaluations: {
-        include: {
-          criteria: true,
-        },
-      },
-      _count: {
-        select: {
-          achievements: true,
-        },
-      },
+      evaluations: true,
+      awards: true,
+      courses: true,
+      researchActivities: true,
+      scientificActivities: true,
+      universityServices: true,
+      communityServices: true,
     },
-    orderBy: { academicYear: "desc" },
+    orderBy: { cycle: { academicYear: "desc" } },
   })
 
   return {
@@ -109,41 +125,188 @@ async function generateAppraisalsReport(session: any, academicYear?: string | nu
 async function generateAchievementsReport(session: any, academicYear?: string | null, userId?: string | null) {
   const whereClause: any = {}
 
-  // Role-based filtering
-  if (session.user.role === UserRole.FACULTY) {
-    whereClause.userId = session.user.id
+  // Role-based filtering using proper relationships
+  if (session.user.role === UserRole.INSTRUCTOR) {
+    whereClause.appraisal = {
+      facultyId: parseInt(session.user.id)
+    }
   } else if (session.user.role === UserRole.HOD) {
-    whereClause.collegeId = session.user.collegeId
-    whereClause.majorId = session.user.majorId
+    // HOD can see achievements from their department
+    whereClause.appraisal = {
+      faculty: {
+        departmentId: parseInt(session.user.departmentId || '0')
+      }
+    }
   } else if (session.user.role === UserRole.DEAN) {
-    whereClause.collegeId = session.user.collegeId
+    // DEAN can see achievements from their college
+    whereClause.appraisal = {
+      faculty: {
+        department: {
+          collegeId: parseInt(session.user.collegeId || '0')
+        }
+      }
+    }
   }
 
-  if (academicYear) whereClause.academicYear = academicYear
-  if (userId) whereClause.userId = userId
+  if (academicYear) {
+    whereClause.appraisal = {
+      ...whereClause.appraisal,
+      cycle: { academicYear }
+    }
+  }
+  if (userId) {
+    whereClause.appraisal = {
+      ...whereClause.appraisal,
+      facultyId: parseInt(userId)
+    }
+  }
 
-  const achievements = await prisma.achievement.findMany({
-    where: whereClause,
-    include: {
-      user: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-          major: { select: { name: true } },
-        },
+  // Get achievements from multiple models
+  const [awards, researchActivities, scientificActivities, universityServices, communityServices] = await Promise.all([
+    prisma.award.findMany({
+      where: whereClause,
+      include: {
+        appraisal: {
+          select: {
+            faculty: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                department: {
+                  select: {
+                    name: true,
+                    college: {
+                      select: { name: true }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
-      college: { select: { name: true } },
-      major: { select: { name: true } },
-    },
-    orderBy: { dateAchieved: "desc" },
-  })
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.researchActivity.findMany({
+      where: whereClause,
+      include: {
+        appraisal: {
+          select: {
+            faculty: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                department: {
+                  select: {
+                    name: true,
+                    college: {
+                      select: { name: true }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.scientificActivity.findMany({
+      where: whereClause,
+      include: {
+        appraisal: {
+          select: {
+            faculty: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                department: {
+                  select: {
+                    name: true,
+                    college: {
+                      select: { name: true }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.universityService.findMany({
+      where: whereClause,
+      include: {
+        appraisal: {
+          select: {
+            faculty: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                department: {
+                  select: {
+                    name: true,
+                    college: {
+                      select: { name: true }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.communityService.findMany({
+      where: whereClause,
+      include: {
+        appraisal: {
+          select: {
+            faculty: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                department: {
+                  select: {
+                    name: true,
+                    college: {
+                      select: { name: true }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ])
+
+  // Combine all achievements
+  const allAchievements: any[] = [
+    ...awards.map((a: any) => ({ ...a, type: 'Award', category: 'Awards' })),
+    ...researchActivities.map((a: any) => ({ ...a, type: 'Research', category: a.kind })),
+    ...scientificActivities.map((a: any) => ({ ...a, type: 'Scientific', category: a.type })),
+    ...universityServices.map((a: any) => ({ ...a, type: 'University Service', category: 'Service' })),
+    ...communityServices.map((a: any) => ({ ...a, type: 'Community Service', category: 'Service' })),
+  ]
 
   const summary = {
-    totalAchievements: achievements.length,
-    totalPoints: achievements.reduce((sum, a) => sum + a.points, 0),
-    verifiedAchievements: achievements.filter((a) => a.isVerified).length,
-    categorySummary: achievements.reduce((acc: any, achievement) => {
+    totalAchievements: allAchievements.length,
+    totalAwards: awards.length,
+    totalResearch: researchActivities.length,
+    totalScientific: scientificActivities.length,
+    totalUniversityServices: universityServices.length,
+    totalCommunityServices: communityServices.length,
+    categorySummary: allAchievements.reduce((acc: any, achievement) => {
       acc[achievement.category] = (acc[achievement.category] || 0) + 1
       return acc
     }, {}),
@@ -153,72 +316,147 @@ async function generateAchievementsReport(session: any, academicYear?: string | 
     title: "Achievements Report",
     generatedAt: new Date().toISOString(),
     summary,
-    data: achievements,
+    data: allAchievements,
   }
 }
 
 async function generatePerformanceReport(session: any, academicYear?: string | null, userId?: string | null) {
   const whereClause: any = {}
 
-  // Role-based filtering
-  if (session.user.role === UserRole.FACULTY) {
-    whereClause.userId = session.user.id
+  // Role-based filtering using proper relationships
+  if (session.user.role === UserRole.INSTRUCTOR) {
+    whereClause.facultyId = parseInt(session.user.id)
   } else if (session.user.role === UserRole.HOD) {
-    whereClause.collegeId = session.user.collegeId
-    whereClause.majorId = session.user.majorId
+    // HOD can see appraisals from their department
+    whereClause.faculty = {
+      departmentId: parseInt(session.user.departmentId || '0')
+    }
   } else if (session.user.role === UserRole.DEAN) {
-    whereClause.collegeId = session.user.collegeId
+    // DEAN can see appraisals from their college
+    whereClause.faculty = {
+      department: {
+        collegeId: parseInt(session.user.collegeId || '0')
+      }
+    }
   }
 
-  if (academicYear) whereClause.academicYear = academicYear
-  if (userId) whereClause.userId = userId
+  if (academicYear) whereClause.cycle = { academicYear }
+  if (userId) whereClause.facultyId = parseInt(userId)
 
-  const [appraisals, achievements] = await Promise.all([
+  const [appraisals, awards, researchActivities, scientificActivities, universityServices, communityServices] = await Promise.all([
     prisma.appraisal.findMany({
       where: whereClause,
       include: {
-        user: {
+        faculty: {
           select: {
-            firstName: true,
-            lastName: true,
+            id: true,
+            name: true,
             email: true,
-            major: { select: { name: true } },
+            department: {
+              select: {
+                name: true,
+                college: {
+                  select: { name: true }
+                }
+              }
+            }
           },
         },
-        evaluations: {
-          include: {
-            criteria: true,
-          },
+        cycle: {
+          select: {
+            academicYear: true,
+          }
         },
+        evaluations: true,
       },
     }),
-    prisma.achievement.findMany({
+    prisma.award.findMany({
       where: whereClause,
       include: {
-        user: {
+        appraisal: {
           select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
+            facultyId: true,
+          }
+        }
+      },
+    }),
+    prisma.researchActivity.findMany({
+      where: whereClause,
+      include: {
+        appraisal: {
+          select: {
+            facultyId: true,
+          }
+        }
+      },
+    }),
+    prisma.scientificActivity.findMany({
+      where: whereClause,
+      include: {
+        appraisal: {
+          select: {
+            facultyId: true,
+          }
+        }
+      },
+    }),
+    prisma.universityService.findMany({
+      where: whereClause,
+      include: {
+        appraisal: {
+          select: {
+            facultyId: true,
+          }
+        }
+      },
+    }),
+    prisma.communityService.findMany({
+      where: whereClause,
+      include: {
+        appraisal: {
+          select: {
+            facultyId: true,
+          }
+        }
       },
     }),
   ])
 
+  // Combine all achievements and group by faculty
+  const allAchievements: any[] = [
+    ...awards.map((a: any) => ({ ...a, type: 'Award' })),
+    ...researchActivities.map((a: any) => ({ ...a, type: 'Research' })),
+    ...scientificActivities.map((a: any) => ({ ...a, type: 'Scientific' })),
+    ...universityServices.map((a: any) => ({ ...a, type: 'University Service' })),
+    ...communityServices.map((a: any) => ({ ...a, type: 'Community Service' })),
+  ]
+
+  const achievementsByFaculty = allAchievements.reduce((acc: any, achievement) => {
+    const facultyId = achievement.appraisal.facultyId
+    if (!acc[facultyId]) {
+      acc[facultyId] = []
+    }
+    acc[facultyId].push(achievement)
+    return acc
+  }, {})
+
   const performanceData = appraisals.map((appraisal) => {
-    const userAchievements = achievements.filter((a) => a.userId === appraisal.userId)
+    const userAchievements = achievementsByFaculty[appraisal.facultyId] || []
     return {
-      user: appraisal.user,
+      faculty: appraisal.faculty,
+      cycle: appraisal.cycle,
       appraisal: {
-        academicYear: appraisal.academicYear,
         status: appraisal.status,
         finalScore: appraisal.finalScore,
         evaluations: appraisal.evaluations,
       },
       achievements: {
         total: userAchievements.length,
-        totalPoints: userAchievements.reduce((sum, a) => sum + a.points, 0),
-        verified: userAchievements.filter((a) => a.isVerified).length,
+        awards: userAchievements.filter((a: any) => a.type === 'Award').length,
+        research: userAchievements.filter((a: any) => a.type === 'Research').length,
+        scientific: userAchievements.filter((a: any) => a.type === 'Scientific').length,
+        universityServices: userAchievements.filter((a: any) => a.type === 'University Service').length,
+        communityServices: userAchievements.filter((a: any) => a.type === 'Community Service').length,
       },
     }
   })

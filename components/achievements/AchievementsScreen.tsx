@@ -1,9 +1,9 @@
 
 "use client"
 import useSWR from 'swr'
-import { useMemo, useState } from 'react'
-import { Trash2, Edit, CheckCircle, FolderOpen, FileText, LogOut, Menu, X, Printer } from "lucide-react"
-
+import { useMemo, useState, useEffect } from 'react'
+import { Trash2, Edit, CheckCircle, FolderOpen, FileText, LogOut, Menu, X, Printer, Upload, Plus } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const fetcher = (u:string)=>fetch(u).then(r=>r.json())
 
@@ -69,14 +69,131 @@ function Field({ label, children }:{ label:string; children:any }){
 
 function Input(props:any){ return <input {...props} className={`border rounded px-3 py-2 w-full ${props.className||''}`} /> }
 
+function FileInput({ label, value, onChange, entityType, entityId }: { label: string; value?: string; onChange: (value: string) => void; entityType: string; entityId: string }) {
+  const [isUploading, setIsUploading] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
+
+  const handleFileUpload = async (file: File) => {
+    if (!file) return
+
+    setIsUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', entityType)
+      formData.append('entityId', entityId)
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        onChange(data.url)
+      } else {
+        alert('Failed to upload file')
+      }
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('Failed to upload file')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      await handleFileUpload(file)
+    }
+  }
+
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragOver(false)
+
+    const file = event.dataTransfer.files?.[0]
+    if (file) {
+      await handleFileUpload(file)
+    }
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragOver(false)
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="text-sm mb-1">{label}</div>
+      <div
+        className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+          isDragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+        }`}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+      >
+        <div className="space-y-2">
+          <div className="text-sm text-gray-600">
+            {isDragOver ? 'Drop file here' : 'Drag & drop a file here, or click to select'}
+          </div>
+          <input
+            type="file"
+            onChange={handleInputChange}
+            disabled={isUploading}
+            className="hidden"
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+            id={`file-input-${label}`}
+          />
+          <label
+            htmlFor={`file-input-${label}`}
+            className="inline-block px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer text-sm"
+          >
+            Choose File
+          </label>
+          {isUploading && <div className="text-sm text-gray-500">Uploading...</div>}
+        </div>
+      </div>
+      {value && (
+        <div className="text-sm text-blue-600">
+          <a href={value} target="_blank" rel="noopener noreferrer" className="underline">
+            <FolderOpen size={14} className="inline mr-1" />
+            View uploaded file
+          </a>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Main screen -------------------------------------------------------------
 export default function AchievementsScreen(){
   const { data, isLoading, mutate } = useSWR('/api/appraisals/current', fetcher)
-  const [modal, setModal] = useState<null | { key: string; title: string }>(null)
+  const [modal, setModal] = useState<null | { key: string; title: string; editData?: any; editId?: number }>(null)
+
+  // Extract appraisal ID from API response
+  const appraisalId = data?.appraisalId
 
   async function add(resource:string, payload:any){
     const res = await fetch(`/api/appraisals/current/${resource}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
     if (!res.ok) { alert('Failed to add'); return }
+    await mutate()
+    setModal(null)
+  }
+  async function edit(resource:string, id:number, payload:any){
+    const res = await fetch(`/api/appraisals/current/${resource}/${id}`, {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    })
+    if (!res.ok) { alert('Failed to update'); return }
     await mutate()
     setModal(null)
   }
@@ -91,49 +208,88 @@ export default function AchievementsScreen(){
 
   // Helpers to render action column
   const link = (url?:string)=> url? <a className="underline" href={url} target="_blank"><FolderOpen size={15} /></a> : '—'
+  const editBtn = (res:string)=> (_:any, row:any)=> (
+    <button onClick={()=>{
+      setModal({ key:res, title:`Edit ${res.toUpperCase()}`, editData: row, editId: row.id })
+    }} className="text-blue-600 underline mr-2">
+      <Edit size={15} />
+    </button>
+  )
   const delBtn = (res:string)=> (_:any, row:any)=> <button onClick={()=>del(res, row.id)} className="text-red-600 underline"><Trash2 size={15} /></button>
 
   // ------------------ Awards ------------------
   const awardsCols = [
     { key:'name', label:'Name' },
+    { key:'type', label:'Type' },
     { key:'area', label:'Generated Area' },
     { key:'organization', label:'Generating Organization' },
     { key:'dateObtained', label:'Date Obtained', render:(v:any)=> v? new Date(v).toLocaleDateString():'—' },
-    { key:'fileUrl', label:'Attachment', render:(v:any)=> link(v) },
-    { key:'action', label:'Action', render: delBtn('awards') },
+    { key:'attachment', label:'Attachment', render:(v:any)=> link(v) },
+    { key:'action', label:'Action', render: (v:any, row:any) => (
+      <div className="flex gap-2">
+        {editBtn('awards')(v, row)}
+        {delBtn('awards')(v, row)}
+      </div>
+    ) },
   ]
 
   // ------------------ Courses -----------------
   const coursesCols = [
     { key:'academicYear', label:'Academic Year' },
     { key:'semester', label:'Semester' },
+    { key:'courseCode', label:'Course Code' },
+    { key:'section', label:'Section' },
     { key:'courseTitle', label:'Course Title' },
     { key:'credit', label:'Course Credit' },
     { key:'studentsCount', label:'Number Of Students' },
-    { key:'action', label:'Action', render: delBtn('courses') },
+    { key:'studentsEvalAvg', label:'Student Evaluation' },
+    { key:'action', label:'Action', render: (v:any, row:any) => (
+      <div className="flex gap-2">
+        {editBtn('courses')(v, row)}
+        {delBtn('courses')(v, row)}
+      </div>
+    ) },
   ]
 
   // -------- Research (Published Paper) --------
   const published = (data?.research || []).filter((r:any)=> (r.kind||'').toUpperCase()==='PUBLISHED')
   const publishedCols = [
     { key:'title', label:'Title' },
-    { key:'kind', label:'Type', render:()=> 'PUBLISHED' },
+    { key:'type', label:'Type' },
     { key:'journalOrPublisher', label:'Name Of The Journal' },
     { key:'participation', label:'Nature Of Participation' },
     { key:'publicationDate', label:'Date Of Publication', render:(v:any)=> v? new Date(v).toLocaleDateString():'—' },
-    { key:'fileUrl', label:'Attachment', render:(v:any)=> link(v) },
-    { key:'action', label:'Action', render: delBtn('research') },
+    { key:'attachment', label:'Attachment', render:(v:any)=> link(v) },
+    { key:'action', label:'Action', render: (v:any, row:any) => (
+      <div className="flex gap-2">
+        <button onClick={()=>{
+          setModal({ key:'research_article', title:'Edit RESEARCH ACTIVITIES (ARTICLE)', editData: row, editId: row.id })
+        }} className="text-blue-600 underline mr-2">
+          <Edit size={15} />
+        </button>
+        {delBtn('research')(v, row)}
+      </div>
+    ) },
   ]
 
   // ------------- Research (Article) ------------
   const articles = (data?.research || []).filter((r:any)=> (r.kind||'').toUpperCase()==='REFEREED_PAPER')
   const articlesCols = [
     { key:'title', label:'Title' },
-    { key:'refereedArticleReference', label:'Refereed Article Reference', render:(v:any, r:any)=> r.refereedArticleReference || '—' },
+    { key:'refereedArticleRef', label:'Refereed Article Reference', render:(v:any, r:any)=> r.refereedArticleRef || '—' },
     { key:'journalOrPublisher', label:'Name Of The Journal' },
     { key:'publicationDate', label:'Date Of Submitting', render:(v:any)=> v? new Date(v).toLocaleDateString():'—' },
-    { key:'fileUrl', label:'Attachment', render:(v:any)=> link(v) },
-    { key:'action', label:'Action', render: delBtn('research') },
+    { key:'attachment', label:'Attachment', render:(v:any)=> link(v) },
+    { key:'action', label:'Action', render: (v:any, row:any) => (
+      <div className="flex gap-2">
+        <button onClick={()=>{
+          setModal({ key:'research_published', title:'Edit RESEARCH ACTIVITIES (PUBLISHED PAPER)', editData: row, editId: row.id })
+        }} className="text-blue-600 underline mr-2">
+          <Edit size={15} />
+        </button>
+        {delBtn('research')(v, row)}
+      </div>
+    ) },
   ]
 
   // --------------- Scientific -----------------
@@ -144,8 +300,13 @@ export default function AchievementsScreen(){
     { key:'participation', label:'Type Of Participation' },
     { key:'organizingAuth', label:'Organizing Authority' },
     { key:'venue', label:'Venue' },
-    { key:'fileUrl', label:'Attachment', render:(v:any)=> link(v) },
-    { key:'action', label:'Action', render: delBtn('scientific') },
+    { key:'attachment', label:'Attachment', render:(v:any)=> link(v) },
+    { key:'action', label:'Action', render: (v:any, row:any) => (
+      <div className="flex gap-2">
+        {editBtn('scientific')(v, row)}
+        {delBtn('scientific')(v, row)}
+      </div>
+    ) },
   ]
 
   // --------------- University Service ----------
@@ -155,8 +316,13 @@ export default function AchievementsScreen(){
     { key:'participation', label:'Nature Of Participation' },
     { key:'dateTo', label:'Date To', render:(v:any)=> v? new Date(v).toLocaleDateString():'—' },
     { key:'dateFrom', label:'Date From', render:(v:any)=> v? new Date(v).toLocaleDateString():'—' },
-    { key:'fileUrl', label:'Attachment', render:(v:any)=> link(v) },
-    { key:'action', label:'Action', render: delBtn('university') },
+    { key:'attachment', label:'Attachment', render:(v:any)=> link(v) },
+    { key:'action', label:'Action', render: (v:any, row:any) => (
+      <div className="flex gap-2">
+        {editBtn('university')(v, row)}
+        {delBtn('university')(v, row)}
+      </div>
+    ) },
   ]
 
   // --------------- Community Service ----------
@@ -166,8 +332,13 @@ export default function AchievementsScreen(){
     { key:'participation', label:'Nature Of Participation' },
     { key:'dateTo', label:'Date To', render:(v:any)=> v? new Date(v).toLocaleDateString():'—' },
     { key:'dateFrom', label:'Date From', render:(v:any)=> v? new Date(v).toLocaleDateString():'—' },
-    { key:'fileUrl', label:'Attachment', render:(v:any)=> link(v) },
-    { key:'action', label:'Action', render: delBtn('community') },
+    { key:'attachment', label:'Attachment', render:(v:any)=> link(v) },
+    { key:'action', label:'Action', render: (v:any, row:any) => (
+      <div className="flex gap-2">
+        {editBtn('community')(v, row)}
+        {delBtn('community')(v, row)}
+      </div>
+    ) },
   ]
 
   return (
@@ -201,13 +372,103 @@ export default function AchievementsScreen(){
       <Table columns={commCols} rows={data?.community||[]} />
 
       {/* Modals */}
-      <AwardModal open={modal?.key==='awards'} title={modal?.title||''} onClose={()=>setModal(null)} onSubmit={(p)=>add('awards', p)} />
-      <CourseModal open={modal?.key==='courses'} title={modal?.title||''} onClose={()=>setModal(null)} onSubmit={(p)=>add('courses', p)} />
-      <ResearchModalPublished open={modal?.key==='research_published'} title={modal?.title||''} onClose={()=>setModal(null)} onSubmit={(p)=>add('research', { ...p, kind:'PUBLISHED' })} />
-      <ResearchModalArticle open={modal?.key==='research_article'} title={modal?.title||''} onClose={()=>setModal(null)} onSubmit={(p)=>add('research', { ...p, kind:'REFEREED_PAPER' })} />
-      <ScientificModal open={modal?.key==='scientific'} title={modal?.title||''} onClose={()=>setModal(null)} onSubmit={(p)=>add('scientific', p)} />
-      <ServiceModal open={modal?.key==='university'} title={modal?.title||''} onClose={()=>setModal(null)} onSubmit={(p)=>add('university', p)} />
-      <ServiceModal open={modal?.key==='community'} title={modal?.title||''} onClose={()=>setModal(null)} onSubmit={(p)=>add('community', p)} />
+      <AwardModal
+        open={modal?.key==='awards'}
+        title={modal?.title||''}
+        onClose={()=>setModal(null)}
+        onSubmit={(p)=>{
+          if (modal?.editId) {
+            edit('awards', modal.editId, p)
+          } else {
+            add('awards', p)
+          }
+        }}
+        editData={modal?.editData}
+        appraisalId={appraisalId}
+      />
+      <CourseModal
+        open={modal?.key==='courses'}
+        title={modal?.title||''}
+        onClose={()=>setModal(null)}
+        onSubmit={(p)=>{
+          if (modal?.editId) {
+            edit('courses', modal.editId, p)
+          } else {
+            add('courses', p)
+          }
+        }}
+        editData={modal?.editData}
+      />
+      <ResearchModalPublished
+        open={modal?.key==='research_published'}
+        title={modal?.title||''}
+        onClose={()=>setModal(null)}
+        onSubmit={(p)=>{
+          if (modal?.editId) {
+            edit('research', modal.editId, { ...p, kind:'PUBLISHED' })
+          } else {
+            add('research', { ...p, kind:'PUBLISHED' })
+          }
+        }}
+        editData={modal?.editData}
+        appraisalId={appraisalId}
+      />
+      <ResearchModalArticle
+        open={modal?.key==='research_article'}
+        title={modal?.title||''}
+        onClose={()=>setModal(null)}
+        onSubmit={(p)=>{
+          if (modal?.editId) {
+            edit('research', modal.editId, { ...p, kind:'REFEREED_PAPER' })
+          } else {
+            add('research', { ...p, kind:'REFEREED_PAPER' })
+          }
+        }}
+        editData={modal?.editData}
+        appraisalId={appraisalId}
+      />
+      <ScientificModal
+        open={modal?.key==='scientific'}
+        title={modal?.title||''}
+        onClose={()=>setModal(null)}
+        onSubmit={(p)=>{
+          if (modal?.editId) {
+            edit('scientific', modal.editId, p)
+          } else {
+            add('scientific', p)
+          }
+        }}
+        editData={modal?.editData}
+        appraisalId={appraisalId}
+      />
+      <ServiceModal
+        open={modal?.key==='university'}
+        title={modal?.title||''}
+        onClose={()=>setModal(null)}
+        onSubmit={(p)=>{
+          if (modal?.editId) {
+            edit('university', modal.editId, p)
+          } else {
+            add('university', p)
+          }
+        }}
+        editData={modal?.editData}
+        appraisalId={appraisalId}
+      />
+      <ServiceModal
+        open={modal?.key==='community'}
+        title={modal?.title||''}
+        onClose={()=>setModal(null)}
+        onSubmit={(p)=>{
+          if (modal?.editId) {
+            edit('community', modal.editId, p)
+          } else {
+            add('community', p)
+          }
+        }}
+        editData={modal?.editData}
+        appraisalId={appraisalId}
+      />
     </div>
   )
 }
@@ -224,16 +485,39 @@ function Actions({ onCancel }:{ onCancel:()=>void }){
 }
 
 // AWARDS
-function AwardModal({ open, title, onClose, onSubmit }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void }){
-  const [p, setP] = useState<any>({})
+function AwardModal({ open, title, onClose, onSubmit, editData, appraisalId }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void; editData?:any; appraisalId?:number }){
+  const [p, setP] = useState<any>(editData || {})
+
+  // Update state when editData changes
+  useEffect(() => {
+    if (editData) {
+      setP(editData)
+    } else {
+      setP({})
+    }
+  }, [editData])
   return (
     <Modal open={open} title={title} onClose={onClose}>
       <form onSubmit={(e)=>{e.preventDefault(); onSubmit(p)}}>
-        <Field label="Name"><Input value={p.name||''} onChange={e=>setP({...p,name:e.target.value})} /></Field>
-        <Field label="Generated Area"><Input value={p.area||''} onChange={e=>setP({...p,area:e.target.value})} /></Field>
-        <Field label="Generating Organization"><Input value={p.organization||''} onChange={e=>setP({...p,organization:e.target.value})} /></Field>
-        <Field label="Date Obtained"><Input type="date" value={p.dateObtained||''} onChange={e=>setP({...p,dateObtained:e.target.value})} /></Field>
-        <Field label="Attachment URL"><Input value={p.fileUrl||''} onChange={e=>setP({...p,fileUrl:e.target.value})} /></Field>
+        <Field label="Name"><Input value={p.name||''} onChange={(e: any)=>setP({...p,name:e.target.value})} /></Field>
+        <Field label="Type">
+          <Select value={p.type||''} onValueChange={(value)=>setP({...p,type:value})}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select award type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="certificate">Certificate</SelectItem>
+              <SelectItem value="award">Award</SelectItem>
+              <SelectItem value="recognition">Recognition</SelectItem>
+              <SelectItem value="honor">Honor</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Generated Area"><Input value={p.area||''} onChange={(e: any)=>setP({...p,area:e.target.value})} /></Field>
+        <Field label="Generating Organization"><Input value={p.organization||''} onChange={(e: any)=>setP({...p,organization:e.target.value})} /></Field>
+        <Field label="Date Obtained"><Input type="date" value={p.dateObtained||''} onChange={(e: any)=>setP({...p,dateObtained:e.target.value})} /></Field>
+        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} />
         <Actions onCancel={onClose} />
       </form>
     </Modal>
@@ -247,12 +531,26 @@ function CourseModal({ open, title, onClose, onSubmit }:{ open:boolean; title:st
     <Modal open={open} title={title} onClose={onClose}>
       <form onSubmit={(e)=>{e.preventDefault(); onSubmit(p)}}>
         <Field label="Academic Year"><Input placeholder="2024/2025" value={p.academicYear||''} onChange={e=>setP({...p,academicYear:e.target.value})} /></Field>
-        <Field label="Semester"><Input placeholder="First/Second/Summer" value={p.semester||''} onChange={e=>setP({...p,semester:e.target.value})} /></Field>
+        <Field label="Semester">
+          <Select value={p.semester||''} onValueChange={(value)=>setP({...p,semester:value})}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select semester" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="First">First</SelectItem>
+              <SelectItem value="Second">Second</SelectItem>
+              <SelectItem value="Summer">Summer</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Course Code"><Input placeholder="CS101" value={p.courseCode||''} onChange={e=>setP({...p,courseCode:e.target.value})} /></Field>
+        <Field label="Section"><Input placeholder="A" value={p.section||''} onChange={e=>setP({...p,section:e.target.value})} /></Field>
         <Field label="Course Title"><Input value={p.courseTitle||''} onChange={e=>setP({...p,courseTitle:e.target.value})} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Course Credit"><Input type="number" value={p.credit||''} onChange={e=>setP({...p,credit:Number(e.target.value)})} /></Field>
+          <Field label="Course Credit"><Input type="number" step="0.5" value={p.credit||''} onChange={e=>setP({...p,credit:Number(e.target.value)})} /></Field>
           <Field label="Number Of Students"><Input type="number" value={p.studentsCount||''} onChange={e=>setP({...p,studentsCount:Number(e.target.value)})} /></Field>
         </div>
+        <Field label="Student Evaluation Average"><Input type="number" step="0.01" min="0" max="5" placeholder="4.5" value={p.studentsEvalAvg||''} onChange={e=>setP({...p,studentsEvalAvg:Number(e.target.value)})} /></Field>
         <Actions onCancel={onClose} />
       </form>
     </Modal>
@@ -260,16 +558,37 @@ function CourseModal({ open, title, onClose, onSubmit }:{ open:boolean; title:st
 }
 
 // RESEARCH (PUBLISHED)
-function ResearchModalPublished({ open, title, onClose, onSubmit }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void }){
-  const [p, setP] = useState<any>({})
+function ResearchModalPublished({ open, title, onClose, onSubmit, editData, appraisalId }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void; editData?:any; appraisalId?:number }){
+  const [p, setP] = useState<any>(editData || {})
+
+  // Update state when editData changes
+  useEffect(() => {
+    if (editData) {
+      setP(editData)
+    } else {
+      setP({})
+    }
+  }, [editData])
   return (
     <Modal open={open} title={title} onClose={onClose}>
-      <form onSubmit={(e)=>{e.preventDefault(); onSubmit(p)}}>
-        <Field label="Title"><Input value={p.title||''} onChange={e=>setP({...p,title:e.target.value})} /></Field>
-        <Field label="Name Of The Journal"><Input value={p.journalOrPublisher||''} onChange={e=>setP({...p,journalOrPublisher:e.target.value})} /></Field>
-        <Field label="Nature Of Participation"><Input value={p.participation||''} onChange={e=>setP({...p,participation:e.target.value})} /></Field>
-        <Field label="Date Of Publication"><Input type="date" value={p.publicationDate||''} onChange={e=>setP({...p,publicationDate:e.target.value})} /></Field>
-        <Field label="Attachment URL"><Input value={p.fileUrl||''} onChange={e=>setP({...p,fileUrl:e.target.value})} /></Field>
+      <form onSubmit={(e)=>{e.preventDefault(); onSubmit({...p, kind:'PUBLISHED'})}}>
+        <Field label="Title"><Input value={p.title||''} onChange={(e: any)=>setP({...p,title:e.target.value})} /></Field>
+        <Field label="Type">
+          <Select value={p.type||''} onValueChange={(value)=>setP({...p,type:value})}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Journal">Journal</SelectItem>
+              <SelectItem value="Conference">Conference</SelectItem>
+              <SelectItem value="Other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Name Of The Journal"><Input value={p.journalOrPublisher||''} onChange={(e: any)=>setP({...p,journalOrPublisher:e.target.value})} /></Field>
+        <Field label="Nature Of Participation"><Input value={p.participation||''} onChange={(e: any)=>setP({...p,participation:e.target.value})} /></Field>
+        <Field label="Date Of Publication"><Input type="date" value={p.publicationDate||''} onChange={(e: any)=>setP({...p,publicationDate:e.target.value})} /></Field>
+        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} />
         <Actions onCancel={onClose} />
       </form>
     </Modal>
@@ -277,16 +596,37 @@ function ResearchModalPublished({ open, title, onClose, onSubmit }:{ open:boolea
 }
 
 // RESEARCH (ARTICLE)
-function ResearchModalArticle({ open, title, onClose, onSubmit }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void }){
-  const [p, setP] = useState<any>({})
+function ResearchModalArticle({ open, title, onClose, onSubmit, editData, appraisalId }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void; editData?:any; appraisalId?:number }){
+  const [p, setP] = useState<any>(editData || {})
+
+  // Update state when editData changes
+  useEffect(() => {
+    if (editData) {
+      setP(editData)
+    } else {
+      setP({})
+    }
+  }, [editData])
   return (
     <Modal open={open} title={title} onClose={onClose}>
       <form onSubmit={(e)=>{e.preventDefault(); onSubmit(p)}}>
         <Field label="Title"><Input value={p.title||''} onChange={e=>setP({...p,title:e.target.value})} /></Field>
-        <Field label="Refereed Article Reference"><Input value={p.refereedArticleReference||''} onChange={e=>setP({...p,refereedArticleReference:e.target.value})} /></Field>
+        <Field label="Type">
+          <Select value={p.type||''} onValueChange={(value)=>setP({...p,type:value})}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Journal">Journal</SelectItem>
+              <SelectItem value="Conference">Conference</SelectItem>
+              <SelectItem value="Other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Refereed Article Reference"><Input value={p.refereedArticleRef||''} onChange={e=>setP({...p,refereedArticleRef:e.target.value})} /></Field>
         <Field label="Name Of The Journal"><Input value={p.journalOrPublisher||''} onChange={e=>setP({...p,journalOrPublisher:e.target.value})} /></Field>
         <Field label="Date Of Submitting"><Input type="date" value={p.publicationDate||''} onChange={e=>setP({...p,publicationDate:e.target.value})} /></Field>
-        <Field label="Attachment URL"><Input value={p.fileUrl||''} onChange={e=>setP({...p,fileUrl:e.target.value})} /></Field>
+        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} />
         <Actions onCancel={onClose} />
       </form>
     </Modal>
@@ -294,8 +634,17 @@ function ResearchModalArticle({ open, title, onClose, onSubmit }:{ open:boolean;
 }
 
 // SCIENTIFIC
-function ScientificModal({ open, title, onClose, onSubmit }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void }){
-  const [p, setP] = useState<any>({})
+function ScientificModal({ open, title, onClose, onSubmit, editData, appraisalId }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void; editData?:any; appraisalId?:number }){
+  const [p, setP] = useState<any>(editData || {})
+
+  // Update state when editData changes
+  useEffect(() => {
+    if (editData) {
+      setP(editData)
+    } else {
+      setP({})
+    }
+  }, [editData])
   return (
     <Modal open={open} title={title} onClose={onClose}>
       <form onSubmit={(e)=>{e.preventDefault(); onSubmit(p)}}>
@@ -305,7 +654,7 @@ function ScientificModal({ open, title, onClose, onSubmit }:{ open:boolean; titl
         <Field label="Type Of Participation"><Input value={p.participation||''} onChange={e=>setP({...p,participation:e.target.value})} /></Field>
         <Field label="Organizing Authority"><Input value={p.organizingAuth||''} onChange={e=>setP({...p,organizingAuth:e.target.value})} /></Field>
         <Field label="Venue"><Input value={p.venue||''} onChange={e=>setP({...p,venue:e.target.value})} /></Field>
-        <Field label="Attachment URL"><Input value={p.fileUrl||''} onChange={e=>setP({...p,fileUrl:e.target.value})} /></Field>
+        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} />
         <Actions onCancel={onClose} />
       </form>
     </Modal>
@@ -313,8 +662,17 @@ function ScientificModal({ open, title, onClose, onSubmit }:{ open:boolean; titl
 }
 
 // SERVICE (University/Community)
-function ServiceModal({ open, title, onClose, onSubmit }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void }){
-  const [p, setP] = useState<any>({})
+function ServiceModal({ open, title, onClose, onSubmit, editData, appraisalId }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void; editData?:any; appraisalId?:number }){
+  const [p, setP] = useState<any>(editData || {})
+
+  // Update state when editData changes
+  useEffect(() => {
+    if (editData) {
+      setP(editData)
+    } else {
+      setP({})
+    }
+  }, [editData])
   return (
     <Modal open={open} title={title} onClose={onClose}>
       <form onSubmit={(e)=>{e.preventDefault(); onSubmit(p)}}>
@@ -325,7 +683,7 @@ function ServiceModal({ open, title, onClose, onSubmit }:{ open:boolean; title:s
           <Field label="Date From"><Input type="date" value={p.dateFrom||''} onChange={e=>setP({...p,dateFrom:e.target.value})} /></Field>
           <Field label="Date To"><Input type="date" value={p.dateTo||''} onChange={e=>setP({...p,dateTo:e.target.value})} /></Field>
         </div>
-        <Field label="Attachment URL"><Input value={p.fileUrl||''} onChange={e=>setP({...p,fileUrl:e.target.value})} /></Field>
+        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} />
         <Actions onCancel={onClose} />
       </form>
     </Modal>

@@ -76,11 +76,47 @@ export default function ReportsPage() {
     setIsGenerating(true)
 
     try {
-      // TODO: Implement actual report generation
-      // For now, just simulate
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      const params = new URLSearchParams({
+        type: reportType,
+        cycleId: selectedCycle,
+        ...(selectedCollege && { collegeId: selectedCollege }),
+        ...(selectedDepartment && { departmentId: selectedDepartment }),
+        ...(includeAttachments && { includeAttachments: 'true' }),
+      })
 
-      alert("Report generated successfully! (This is a placeholder)")
+      const response = await fetch(`/api/admin/reports/generate?${params}`)
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.style.display = 'none'
+        a.href = url
+
+        // Set filename based on report type
+        const cycle = cycles.find(c => c.id.toString() === selectedCycle)
+        const timestamp = new Date().toISOString().split('T')[0]
+        let filename = `${reportType}_report_${cycle?.academicYear}_${cycle?.semester}_${timestamp}`
+
+        if (reportType === 'by-college' && selectedCollege) {
+          const college = colleges.find(c => c.id.toString() === selectedCollege)
+          filename = `${college?.name}_${filename}`
+        } else if (reportType === 'by-department' && selectedDepartment) {
+          const dept = departments.find(d => d.id.toString() === selectedDepartment)
+          filename = `${dept?.name}_${filename}`
+        }
+
+        a.download = filename + '.csv'
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+
+        alert("Report generated and downloaded successfully!")
+      } else {
+        const error = await response.json()
+        alert(`Failed to generate report: ${error.error}`)
+      }
     } catch (error) {
       console.error("Error generating report:", error)
       alert("Failed to generate report")

@@ -219,7 +219,7 @@ export default function AppraisalsPage() {
                 <TableHead>Status</TableHead>
                 <TableHead>Total</TableHead>
                 <TableHead>Updated</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {/* <TableHead className="text-right">Actions</TableHead> */}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -239,13 +239,13 @@ export default function AppraisalsPage() {
                   </TableCell>
                   <TableCell>{appraisal.totalScore || "-"}</TableCell>
                   <TableCell>{new Date(appraisal.updatedAt).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right">
+                  {/* <TableCell className="text-right">
                     <Link href={`/admin/appraisals/${appraisal.id}`}>
                       <Button variant="outline" size="sm">
                         <Eye className="h-4 w-4" />
                       </Button>
                     </Link>
-                  </TableCell>
+                  </TableCell> */}
                 </TableRow>
               ))}
             </TableBody>

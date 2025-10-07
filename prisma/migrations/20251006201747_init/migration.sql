@@ -8,7 +8,7 @@ CREATE TYPE "public"."UserStatus" AS ENUM ('ACTIVE', 'INACTIVE');
 CREATE TYPE "public"."Semester" AS ENUM ('FALL', 'SPRING', 'SUMMER');
 
 -- CreateEnum
-CREATE TYPE "public"."EvaluationStatus" AS ENUM ('NEW', 'IN_REVIEW', 'SCORES_SENT', 'COMPLETE', 'RETURNED');
+CREATE TYPE "public"."EvaluationStatus" AS ENUM ('new', 'sent', 'complete', 'returned');
 
 -- CreateEnum
 CREATE TYPE "public"."EvaluationRole" AS ENUM ('HOD', 'DEAN');
@@ -21,6 +21,9 @@ CREATE TYPE "public"."RatingBand" AS ENUM ('HIGHLY_EXCEEDS', 'EXCEEDS', 'FULLY_M
 
 -- CreateEnum
 CREATE TYPE "public"."ResearchKind" AS ENUM ('ACCEPTED', 'PUBLISHED', 'IN_PROCESS', 'ARBITRATION', 'THESIS_SUPERVISION', 'FUNDED_PROJECT', 'CONTRACTUAL_RESEARCH', 'REGISTERED_PATENT', 'REFEREED_PAPER', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "public"."ResearchActivityType" AS ENUM ('JOURNAL', 'CONFERENCE', 'OTHER');
 
 -- CreateEnum
 CREATE TYPE "public"."ScientificType" AS ENUM ('CONFERENCE', 'SEMINAR', 'WORKSHOP', 'TRAINING', 'OTHER');
@@ -69,6 +72,7 @@ CREATE TABLE "public"."User" (
     "generalSpecialization" TEXT,
     "specificSpecialization" TEXT,
     "dateOfEmployment" TIMESTAMP(3),
+    "image" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -79,7 +83,6 @@ CREATE TABLE "public"."User" (
 CREATE TABLE "public"."AppraisalCycle" (
     "id" SERIAL NOT NULL,
     "academicYear" TEXT NOT NULL,
-    "semester" "public"."Semester" NOT NULL,
     "startDate" TIMESTAMP(3) NOT NULL,
     "endDate" TIMESTAMP(3) NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
@@ -94,7 +97,7 @@ CREATE TABLE "public"."Appraisal" (
     "id" SERIAL NOT NULL,
     "facultyId" INTEGER NOT NULL,
     "cycleId" INTEGER NOT NULL,
-    "status" "public"."EvaluationStatus" NOT NULL DEFAULT 'NEW',
+    "status" "public"."EvaluationStatus" NOT NULL DEFAULT 'new',
     "researchScore" DOUBLE PRECISION,
     "universityServiceScore" DOUBLE PRECISION,
     "communityServiceScore" DOUBLE PRECISION,
@@ -159,6 +162,7 @@ CREATE TABLE "public"."Award" (
     "area" TEXT,
     "organization" TEXT,
     "dateObtained" TIMESTAMP(3),
+    "attachment" TEXT,
     "fileUrl" TEXT,
     "fileKey" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -188,12 +192,14 @@ CREATE TABLE "public"."ResearchActivity" (
     "id" SERIAL NOT NULL,
     "appraisalId" INTEGER NOT NULL,
     "title" TEXT NOT NULL,
+    "type" "public"."ResearchActivityType" NOT NULL,
     "kind" "public"."ResearchKind" NOT NULL,
     "journalOrPublisher" TEXT,
     "participation" TEXT,
     "publicationDate" TIMESTAMP(3),
     "refereedArticleRef" TEXT,
     "refereeDecisionDate" TIMESTAMP(3),
+    "attachment" TEXT,
     "fileUrl" TEXT,
     "fileKey" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -211,6 +217,7 @@ CREATE TABLE "public"."ScientificActivity" (
     "participation" "public"."ScientificParticipation",
     "organizingAuth" TEXT,
     "venue" TEXT,
+    "attachment" TEXT,
     "fileUrl" TEXT,
     "fileKey" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -227,6 +234,7 @@ CREATE TABLE "public"."UniversityService" (
     "participation" TEXT,
     "dateFrom" TIMESTAMP(3),
     "dateTo" TIMESTAMP(3),
+    "attachment" TEXT,
     "fileUrl" TEXT,
     "fileKey" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -243,6 +251,7 @@ CREATE TABLE "public"."CommunityService" (
     "participation" TEXT,
     "dateFrom" TIMESTAMP(3),
     "dateTo" TIMESTAMP(3),
+    "attachment" TEXT,
     "fileUrl" TEXT,
     "fileKey" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -324,7 +333,7 @@ CREATE UNIQUE INDEX "User_email_key" ON "public"."User"("email");
 CREATE INDEX "User_role_departmentId_idx" ON "public"."User"("role", "departmentId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "AppraisalCycle_academicYear_semester_key" ON "public"."AppraisalCycle"("academicYear", "semester");
+CREATE UNIQUE INDEX "AppraisalCycle_academicYear_key" ON "public"."AppraisalCycle"("academicYear");
 
 -- CreateIndex
 CREATE INDEX "by_faculty_cycle" ON "public"."Appraisal"("facultyId", "cycleId");

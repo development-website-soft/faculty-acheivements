@@ -60,6 +60,7 @@ async function main() {
       role: "ADMIN",
       passwordHash: pwd,
       status: "ACTIVE",
+      image: null,
     },
   })
 
@@ -73,6 +74,7 @@ async function main() {
       departmentId: cs.id,
       passwordHash: pwd,
       status: "ACTIVE",
+      image: null,
     },
   })
 
@@ -86,6 +88,7 @@ async function main() {
       departmentId: cs.id,
       passwordHash: pwd,
       status: "ACTIVE",
+      image: null,
     },
   })
 
@@ -99,6 +102,7 @@ async function main() {
       departmentId: ee.id,
       passwordHash: pwd,
       status: "ACTIVE",
+      image: null,
     },
   })
 
@@ -112,6 +116,7 @@ async function main() {
       departmentId: cs.id,
       passwordHash: pwd,
       status: "ACTIVE",
+      image: null,
     },
   })
 
@@ -125,6 +130,7 @@ async function main() {
       departmentId: cs.id,
       passwordHash: pwd,
       status: "ACTIVE",
+      image: null,
     },
   })
 
@@ -138,6 +144,7 @@ async function main() {
       departmentId: ee.id,
       passwordHash: pwd,
       status: "ACTIVE",
+      image: null,
     },
   })
 
@@ -147,11 +154,10 @@ async function main() {
 
   // 3) Appraisal Cycles
   const fall = await prisma.appraisalCycle.upsert({
-    where: { academicYear_semester: { academicYear: "2024/2025", semester: "FALL" } },
+    where: { academicYear: "2024/2025" },
     update: { isActive: true },
     create: {
       academicYear: "2024/2025",
-      semester: "FALL",
       startDate: new Date("2024-09-01"),
       endDate: new Date("2025-01-31"),
       isActive: true,
@@ -159,11 +165,10 @@ async function main() {
   })
 
   const spring = await prisma.appraisalCycle.upsert({
-    where: { academicYear_semester: { academicYear: "2024/2025", semester: "SPRING" } },
+    where: { academicYear: "2024/2025-SPRING" },
     update: {},
     create: {
-      academicYear: "2024/2025",
-      semester: "SPRING",
+      academicYear: "2024/2025-SPRING",
       startDate: new Date("2025-02-15"),
       endDate: new Date("2025-06-30"),
       isActive: false,
@@ -176,7 +181,7 @@ async function main() {
     data: {
       facultyId: fAlice.id,
       cycleId: fall.id,
-      status: "NEW",
+      status: "new",
       submittedAt: new Date("2025-01-10"),
     },
   })
@@ -184,7 +189,7 @@ async function main() {
     data: {
       facultyId: fBob.id,
       cycleId: fall.id,
-      status: "NEW",
+      status: "new",
       submittedAt: new Date("2025-01-12"),
     },
   })
@@ -192,7 +197,7 @@ async function main() {
     data: {
       facultyId: fEve.id,
       cycleId: fall.id,
-      status: "NEW",
+      status: "new",
       submittedAt: new Date("2025-01-08"),
     },
   })
@@ -202,7 +207,7 @@ async function main() {
     data: {
       facultyId: hodCS.id,
       cycleId: fall.id,
-      status: "NEW",
+      status: "new",
       submittedAt: new Date("2025-01-15"),
     },
   })
@@ -218,6 +223,7 @@ async function main() {
           area: "Research",
           organization: "IEEE",
           dateObtained: new Date("2024-12-05"),
+          attachment: "https://example.com/awards/best-paper.pdf",
           fileUrl: "https://example.com/awards/best-paper.pdf",
         },
         {
@@ -226,6 +232,8 @@ async function main() {
           area: "Teaching",
           organization: "University Council",
           dateObtained: new Date("2024-11-10"),
+          attachment: "https://example.com/awards/teaching-excellence.pdf",
+          fileUrl: "https://example.com/awards/teaching-excellence.pdf",
         },
       ],
     })
@@ -264,26 +272,35 @@ async function main() {
         {
           appraisalId,
           title: "Published Paper on AI",
+          type: "JOURNAL",
           kind: "PUBLISHED",
           journalOrPublisher: "Elsevier",
           participation: "MAIN_AUTHOR",
           publicationDate: new Date("2024-10-01"),
+          attachment: "https://example.com/research/ai-paper.pdf",
+          fileUrl: "https://example.com/research/ai-paper.pdf",
         },
         {
           appraisalId,
           title: "Accepted Paper on Systems",
+          type: "CONFERENCE",
           kind: "ACCEPTED",
           journalOrPublisher: "Springer",
           participation: "CO_AUTHOR",
           publicationDate: new Date("2024-12-20"),
+          attachment: "https://example.com/research/systems-paper.pdf",
+          fileUrl: "https://example.com/research/systems-paper.pdf",
         },
         {
           appraisalId,
           title: "Refereed Article Review",
+          type: "OTHER",
           kind: "REFEREED_PAPER",
           journalOrPublisher: "ACM",
           participation: "REFEREE",
           refereeDecisionDate: new Date("2024-11-30"),
+          attachment: "https://example.com/research/review-article.pdf",
+          fileUrl: "https://example.com/research/review-article.pdf",
         },
       ],
     })
@@ -299,6 +316,8 @@ async function main() {
           participation: "PRESENTER",
           organizingAuth: "IEEE",
           venue: "Dubai",
+          attachment: "https://example.com/scientific/conference-presentation.pdf",
+          fileUrl: "https://example.com/scientific/conference-presentation.pdf",
         },
         {
           appraisalId,
@@ -308,6 +327,8 @@ async function main() {
           participation: "COORDINATOR",
           organizingAuth: "CS Dept",
           venue: "Campus",
+          attachment: "https://example.com/scientific/workshop-materials.pdf",
+          fileUrl: "https://example.com/scientific/workshop-materials.pdf",
         },
       ],
     })
@@ -322,6 +343,8 @@ async function main() {
           participation: "Member",
           dateFrom: new Date("2024-09-10"),
           dateTo: new Date("2025-01-15"),
+          attachment: "https://example.com/services/curriculum-meeting-minutes.pdf",
+          fileUrl: "https://example.com/services/curriculum-meeting-minutes.pdf",
         },
         {
           appraisalId,
@@ -330,6 +353,8 @@ async function main() {
           participation: "Participant",
           dateFrom: new Date("2024-09-05"),
           dateTo: new Date("2024-12-15"),
+          attachment: "https://example.com/services/qa-report.pdf",
+          fileUrl: "https://example.com/services/qa-report.pdf",
         },
       ],
     })
@@ -344,6 +369,8 @@ async function main() {
           participation: "Speaker",
           dateFrom: new Date("2024-11-01"),
           dateTo: new Date("2024-11-01"),
+          attachment: "https://example.com/community/stem-outreach-photos.pdf",
+          fileUrl: "https://example.com/community/stem-outreach-photos.pdf",
         },
         {
           appraisalId,
@@ -352,6 +379,8 @@ async function main() {
           participation: "Volunteer",
           dateFrom: new Date("2024-12-08"),
           dateTo: new Date("2024-12-08"),
+          attachment: "https://example.com/community/open-day-certificate.pdf",
+          fileUrl: "https://example.com/community/open-day-certificate.pdf",
         },
         {
           appraisalId,
@@ -360,6 +389,8 @@ async function main() {
           participation: "Instructor",
           dateFrom: new Date("2025-01-02"),
           dateTo: new Date("2025-01-05"),
+          attachment: "https://example.com/community/bootcamp-materials.pdf",
+          fileUrl: "https://example.com/community/bootcamp-materials.pdf",
         },
       ],
     })
@@ -473,15 +504,15 @@ async function main() {
   const eHodCS = await finalizeEvaluation(appHodCS.id, "DEAN")
 
   // حالات سير العمل متنوعة:
-  // - Alice: SCORES_SENT (بانتظار موافقة/تظلّم)
+  // - Alice: sent (بانتظار موافقة/تظلّم)
   await prisma.appraisal.update({
     where: { id: appAlice.id },
-    data: { status: "SCORES_SENT", hodReviewedAt: new Date("2025-01-25") },
+    data: { status: "sent", hodReviewedAt: new Date("2025-01-25") },
   })
-  // - Bob: COMPLETE (وافق)
+  // - Bob: complete (وافق)
   await prisma.appraisal.update({
     where: { id: appBob.id },
-    data: { status: "COMPLETE", hodReviewedAt: new Date("2025-01-26") },
+    data: { status: "complete", hodReviewedAt: new Date("2025-01-26") },
   })
   await prisma.signature.create({
     data: {
@@ -492,10 +523,10 @@ async function main() {
       note: "Approved by faculty",
     },
   })
-  // - Eve: RETURNED (تظلّم)
+  // - Eve: returned (تظلّم)
   await prisma.appraisal.update({
     where: { id: appEve.id },
-    data: { status: "RETURNED", hodReviewedAt: new Date("2025-01-24") },
+    data: { status: "returned", hodReviewedAt: new Date("2025-01-24") },
   })
   await prisma.appeal.create({
     data: {
@@ -505,10 +536,10 @@ async function main() {
       createdAt: new Date("2025-01-28"),
     },
   })
-  // - HOD CS appraisal: SCORES_SENT من الـDean
+  // - HOD CS appraisal: sent من الـDean
   await prisma.appraisal.update({
     where: { id: appHodCS.id },
-    data: { status: "SCORES_SENT", deanReviewedAt: new Date("2025-01-26") },
+    data: { status: "sent", deanReviewedAt: new Date("2025-01-26") },
   })
 
   console.log("✅ Seed done.")

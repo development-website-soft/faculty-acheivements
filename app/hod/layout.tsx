@@ -8,3 +8,9 @@ export default function Layout({
 }) {
   return <HODLayout>{children}</HODLayout>
 }
+
+// Metadata for HOD pages
+export const metadata = {
+  title: "HOD Dashboard",
+  description: "Head of Department management interface",
+}

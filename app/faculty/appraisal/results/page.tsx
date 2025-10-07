@@ -57,11 +57,11 @@
 //       const response = await fetch(`/api/appraisals/${appraisal.id}`, {
 //         method: "PATCH",
 //         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify({ status: "COMPLETE" })
+//         body: JSON.stringify({ status: "complete" })
 //       })
 
 //       if (response.ok) {
-//         setAppraisal({ ...appraisal, status: "COMPLETE" })
+//         setAppraisal({ ...appraisal, status: "complete" })
 //       }
 //     } catch (error) {
 //       console.error("Error approving appraisal:", error)
@@ -79,7 +79,7 @@
 //       })
 
 //       if (response.ok) {
-//         setAppraisal({ ...appraisal, status: "RETURNED" })
+//         setAppraisal({ ...appraisal, status: "returned" })
 //         setShowAppealDialog(false)
 //         setAppealMessage("")
 //       }
@@ -90,11 +90,10 @@
 
 //   const getStatusColor = (status: string) => {
 //     switch (status) {
-//       case "NEW": return "bg-blue-100 text-blue-800"
-//       case "IN_REVIEW": return "bg-yellow-100 text-yellow-800"
-//       case "SCORES_SENT": return "bg-orange-100 text-orange-800"
-//       case "COMPLETE": return "bg-green-100 text-green-800"
-//       case "RETURNED": return "bg-red-100 text-red-800"
+//       case "new": return "bg-blue-100 text-blue-800"
+//       case "sent": return "bg-orange-100 text-orange-800"
+//       case "complete": return "bg-green-100 text-green-800"
+//       case "returned": return "bg-red-100 text-red-800"
 //       default: return "bg-gray-100 text-gray-800"
 //     }
 //   }
@@ -157,7 +156,7 @@
 //           <Badge className={getStatusColor(appraisal.status)}>
 //             {appraisal.status}
 //           </Badge>
-//           {appraisal.status === "SCORES_SENT" && (
+//           {appraisal.status === "sent" && (
 //             <div className="flex gap-2">
 //               <Button onClick={handleApprove} className="bg-green-600 hover:bg-green-700">
 //                 <CheckCircle className="mr-2 h-4 w-4" />
@@ -337,7 +336,6 @@ export default async function ResultsPage() {
     )
   }
 
-  // 5) صفوف العرض
   const rows = [
     { section: 'Research',            score: appraisal.researchScore ?? '—' },
     { section: 'University Service',  score: appraisal.universityServiceScore ?? '—' },
@@ -346,9 +344,8 @@ export default async function ResultsPage() {
     { section: 'TOTAL',               score: appraisal.totalScore ?? '—' },
   ]
 
-  const isActionable = appraisal.status === 'SCORES_SENT'
+  const isActionable = appraisal.status === 'sent'
 
-  // 6) الإخراج
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">

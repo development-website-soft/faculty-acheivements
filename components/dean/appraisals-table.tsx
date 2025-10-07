@@ -46,6 +46,40 @@ export default function AppraisalsTable() {
   const [filters, setFilters] = useState({ cycle: '', status: '', search: '' });
   const debouncedSearch = useDebounce(filters.search, 300);
 
+    const shouldEnableEvaluation = (appraisal: AppraisalWithDetails) => {
+    // Always disable if status is complete
+    if (appraisal.status === 'complete') return false;
+
+    // If status is new, only enable within one month of cycle end
+    if (appraisal.status === 'new') {
+      const cycleEndDate = new Date(appraisal.cycle.endDate);
+      const oneMonthBeforeEnd = new Date(cycleEndDate);
+      oneMonthBeforeEnd.setMonth(oneMonthBeforeEnd.getMonth() - 1);
+
+      const now = new Date();
+
+      // Enable only if current date is within the last month before cycle ends
+      const isWithinEvaluationPeriod = now >= oneMonthBeforeEnd && now <= cycleEndDate;
+
+      // Debug logging - check browser console
+      console.log(`Appraisal ID: ${appraisal.id}`);
+      console.log(`Faculty: ${appraisal.faculty.name}`);
+      console.log(`Status: ${appraisal.status}`);
+      console.log(`Cycle: ${appraisal.cycle.academicYear}`);
+      console.log(`Cycle end date: ${cycleEndDate.toISOString().split('T')[0]}`);
+      console.log(`One month before end: ${oneMonthBeforeEnd.toISOString().split('T')[0]}`);
+      console.log(`Current date: ${now.toISOString().split('T')[0]}`);
+      console.log(`Is within evaluation period: ${isWithinEvaluationPeriod}`);
+      console.log('---');
+
+      return isWithinEvaluationPeriod;
+    }
+
+    // For other statuses (like 'sent'), enable evaluation
+    return true;
+  };
+
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -141,8 +175,8 @@ export default function AppraisalsTable() {
                                                 </SheetTrigger>
                                                 <SheetContent className="w-full sm:max-w-2xl"><SheetHeader><SheetTitle>Achievements: {appraisal.faculty.name}</SheetTitle></SheetHeader><AchievementDetails appraisalId={appraisal.id} /></SheetContent>
                                             </Sheet>
-                                            <Button variant="ghost" size="icon" title="View" onClick={() => router.push(`/dean/reviews/${appraisal.id}`)}><Eye className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" title="Evaluate" disabled={appraisal.status === 'COMPLETE'} onClick={() => router.push(`/dean/reviews/${appraisal.id}`)}><Edit className="h-4 w-4" /></Button>
+                                            <Button variant="ghost" size="icon" title="View" onClick={() => router.push(`/dean/view/${appraisal.id}`)}><Eye className="h-4 w-4" /></Button>
+                                            <Button variant="ghost" size="icon" title="Evaluate" disabled={!shouldEnableEvaluation(appraisal)} onClick={() => router.push(`/dean/reviews/${appraisal.id}`)}><Edit className="h-4 w-4" /></Button>
                                         </TableCell>
                                     </TableRow>
                                 ))

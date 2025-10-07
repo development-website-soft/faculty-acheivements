@@ -30,6 +30,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       generalSpecialization,
       specificSpecialization,
       dateOfEmployment,
+      image,
     } = body
 
     if (!email || !name || !role) {
@@ -62,6 +63,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         generalSpecialization,
         specificSpecialization,
         dateOfEmployment: dateOfEmployment ? new Date(dateOfEmployment) : null,
+        image,
       },
       include: {
         department: { include: { college: true } },

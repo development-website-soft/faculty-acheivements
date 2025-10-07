@@ -28,7 +28,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   await prisma.appraisal.update({
     where: { id: appraisalId },
-    data: { status: 'SCORES_SENT' },
+    data: { status: 'sent' },
   })
 
   const path = user.role === 'DEAN' ? `/dean/reviews/${appraisalId}` : `/hod/reviews/${appraisalId}`

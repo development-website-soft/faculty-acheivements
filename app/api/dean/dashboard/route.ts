@@ -26,7 +26,7 @@ const collegeId =
 
     // cycles list (do NOT use startDate)
     const cycles = await prisma.appraisalCycle.findMany({
-      orderBy: [{ academicYear: 'desc' }, { semester: 'desc' }],
+      orderBy: [{ academicYear: 'desc' }],
     })
     if (!collegeId || !cycles.length) {
       return NextResponse.json({
@@ -114,7 +114,7 @@ const collegeId =
 
     return NextResponse.json({
       kpis: {
-        activeCycle: { id: targetCycle.id, name: `${targetCycle.academicYear} - ${targetCycle.semester}` },
+        activeCycle: { id: targetCycle.id, name: `${targetCycle.academicYear}` },
         hodAppraisals: totalAppraisals,
         avgTotalScore: Number(avgTotalScore.toFixed(2)),
         statusDistribution: statusCounts

@@ -33,6 +33,8 @@ type AchievementRow = {
   type: AchievementType
   title: string
   date?: string | null
+  status: string
+  cycle: string
 }
 
 type ApiResponse = {
@@ -79,13 +81,40 @@ function downloadBlob(filename: string, content: string, mime = 'text/csv;charse
   URL.revokeObjectURL(url)
 }
 
+function getStatusColor(status: string) {
+   switch (status) {
+     case "new": return "bg-blue-100 text-blue-800"
+     case "sent": return "bg-orange-100 text-orange-800"
+     case "complete": return "bg-green-100 text-green-800"
+     case "returned": return "bg-red-100 text-red-800"
+     default: return "bg-gray-100 text-gray-800"
+   }
+ }
+
+function isWithinOneMonthOfYearEnd(): boolean {
+   const now = new Date()
+   const currentYear = now.getFullYear()
+   const yearEnd = new Date(currentYear, 11, 31) // December 31st of current year
+   const oneMonthBeforeYearEnd = new Date(currentYear, 11, 1) // December 1st of current year
+
+   return now >= oneMonthBeforeYearEnd && now <= yearEnd
+ }
+
+function shouldEnableEvaluationButton(status: string): boolean {
+   // Button should be disabled for "new" or "complete" status
+   // Only enable for "new" status AND within one month of year end
+   if (status === "complete") return false
+   if (status === "new") return isWithinOneMonthOfYearEnd()
+   return true // Disable for all other statuses
+ }
+
 /* ================== Page ================== */
 export default function HODAchievements() {
   const [achievements, setAchievements] = useState<AchievementRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [filters, setFilters] = useState<{ type: string; search: string }>({ type: '', search: '' })
+  const [filters, setFilters] = useState<{ type: string; search: string; status: string }>({ type: '', search: '', status: '' })
   const debouncedSearch = useDebounce(filters.search, 350)
 
   const [apiTypes, setApiTypes] = useState<string[] | null>(null)
@@ -108,6 +137,7 @@ export default function HODAchievements() {
         const params = new URLSearchParams()
         if (filters.type) params.append('type', filters.type)
         if (debouncedSearch) params.append('search', debouncedSearch)
+        if (filters.status) params.append('status', filters.status)
 
         const res = await fetch(`/api/hod/achievements?${params.toString()}`, {
           signal: controller.signal,
@@ -138,7 +168,7 @@ export default function HODAchievements() {
     downloadBlob('department_achievements.csv', csv)
   }
 
-  const resetFilters = () => setFilters({ type: '', search: '' })
+  const resetFilters = () => setFilters({ type: '', search: '', status: '' })
 
   return (
     <div className="p-6 space-y-4">
@@ -162,7 +192,7 @@ export default function HODAchievements() {
                 value={filters.type || 'all'}
                 onValueChange={(v) => setFilters((p) => ({ ...p, type: v === 'all' ? '' : v }))}
               >
-                <SelectTrigger className="w-[220px]">
+                <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -171,6 +201,22 @@ export default function HODAchievements() {
                       {opt.label}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.status || 'all'}
+                onValueChange={(v) => setFilters((p) => ({ ...p, status: v === 'all' ? '' : v }))}
+              >
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="new">New</SelectItem>
+                  <SelectItem value="sent">Sent</SelectItem>
+                  <SelectItem value="complete">Complete</SelectItem>
+                  <SelectItem value="returned">Returned</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -205,6 +251,7 @@ export default function HODAchievements() {
                   <TableHead>Faculty</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Title</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead className="text-right">Source</TableHead>
                 </TableRow>
@@ -212,13 +259,13 @@ export default function HODAchievements() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                       <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                     </TableCell>
                   </TableRow>
                 ) : achievements.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                       No achievements found.
                     </TableCell>
                   </TableRow>
@@ -230,14 +277,35 @@ export default function HODAchievements() {
                         <Badge variant="outline">{item.type}</Badge>
                       </TableCell>
                       <TableCell className="font-medium min-w-[240px]">{item.title}</TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(item.status)}>
+                          {item.status}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {item.date ? new Date(item.date).toLocaleDateString() : '—'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button asChild variant="outline" size="sm" title="Open appraisal in new tab">
-                          <Link href={`/hod/reviews/${item.appraisalId}`} target="_blank">
-                            <ExternalLink className="h-4 w-4" />
-                          </Link>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!shouldEnableEvaluationButton(item.status)}
+                          title={
+                            shouldEnableEvaluationButton(item.status)
+                              ? "Open appraisal for evaluation"
+                              : item.status === "new" && !isWithinOneMonthOfYearEnd()
+                              ? "Evaluation can only be done one month before year end"
+                              : item.status === "complete"
+                              ? "Evaluation is complete and cannot be modified"
+                              : "Evaluation is not available for this status"
+                          }
+                          onClick={() => {
+                            if (shouldEnableEvaluationButton(item.status)) {
+                              window.open(`/hod/reviews/${item.appraisalId}`, '_blank')
+                            }
+                          }}
+                        >
+                          <ExternalLink className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -249,8 +317,9 @@ export default function HODAchievements() {
 
           <div className="mt-3 text-xs text-muted-foreground">
             Showing {achievements.length} item{achievements.length === 1 ? '' : 's'}
-            {filters.type ? ` • type: ${filters.type}` : ''}{' '}
-            {debouncedSearch ? ` • search: “${debouncedSearch}”` : ''}
+            {filters.type ? ` • type: ${filters.type}` : ''}
+            {filters.status ? ` • status: ${filters.status}` : ''}
+            {debouncedSearch ? ` • search: "${debouncedSearch}"` : ''}
           </div>
         </CardContent>
       </Card>

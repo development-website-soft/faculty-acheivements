@@ -7,8 +7,40 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Download, ExternalLink } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDebounce } from '@/hooks/use-debounce';
 import Link from 'next/link';
+
+function isWithinOneMonthOfYearEnd(): boolean {
+   const now = new Date()
+   const currentYear = now.getFullYear()
+   const yearEnd = new Date(currentYear, 11, 31) // December 31st of current year
+   const oneMonthBeforeYearEnd = new Date(currentYear, 11, 1) // December 1st of current year
+
+   return now >= oneMonthBeforeYearEnd && now <= yearEnd
+ }
+
+function shouldEnableEvaluationButton(status: string): boolean {
+    // Button should be disabled for "new" or "complete" status
+    // Only enable for "new" status AND within one month of year end
+    if (status === "complete") return false
+    if (status === "new") return isWithinOneMonthOfYearEnd()
+    return true // Disable for all other statuses
+  }
+
+function getEvaluationTooltip(status: string): string {
+    if (shouldEnableEvaluationButton(status)) {
+      return "Open appraisal for evaluation"
+    }
+    if (status === "new" && !isWithinOneMonthOfYearEnd()) {
+      return "Evaluation can only be done one month before year end"
+    }
+    if (status === "complete") {
+      return "Evaluation is complete and cannot be modified"
+    }
+    return "Evaluation is not available for this status"
+  }
+
 
 export default function CollegeAchievements() {
     const [achievements, setAchievements] = useState([]);
@@ -86,11 +118,27 @@ export default function CollegeAchievements() {
                                             <TableCell className="font-medium">{item.title}</TableCell>
                                             <TableCell>{item.date ? new Date(item.date).toLocaleDateString() : '-'}</TableCell>
                                             <TableCell className="text-right">
-                                                <Button asChild variant="outline" size="sm">
-                                                    <Link href={`/dean/reviews/${item.appraisalId}`} target="_blank">
-                                                        <ExternalLink className="h-4 w-4" />
-                                                    </Link>
-                                                </Button>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled={!shouldEnableEvaluationButton(item.status)}
+                                                                onClick={() => {
+                                                                    if (shouldEnableEvaluationButton(item.status)) {
+                                                                        window.open(`/dean/reviews/${item.appraisalId}`, '_blank')
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <ExternalLink className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{getEvaluationTooltip(item.status)}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
                                             </TableCell>
                                         </TableRow>
                                     ))

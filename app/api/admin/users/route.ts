@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
       generalSpecialization,
       specificSpecialization,
       dateOfEmployment: doeRaw,
+      image,
     } = payload ?? {}
 
     // --- Basic requireds ---
@@ -144,6 +145,7 @@ export async function POST(request: NextRequest) {
         generalSpecialization: generalSpecialization ?? null,
         specificSpecialization: specificSpecialization ?? null,
         dateOfEmployment,
+        image: image ?? null,
       },
       include: {
         department: { include: { college: true } },

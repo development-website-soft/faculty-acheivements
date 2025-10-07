@@ -14,7 +14,7 @@ type ResourceKey =
 const allowed: Record<ResourceKey, string[]> = {
   awards: ['name', 'area', 'organization', 'dateObtained', 'fileUrl'],
   courses: ['academicYear', 'semester', 'courseTitle', 'courseCode', 'credit', 'studentsCount', 'studentsEvalAvg'],
-  research: ['title', 'kind', 'journalOrPublisher', 'participation', 'publicationDate', 'refereedArticleReference', 'fileUrl'],
+  research: ['title', 'kind', 'journalOrPublisher', 'participation', 'publicationDate', 'refereedArticleRef', 'fileUrl'],
   scientific: ['title', 'type', 'date', 'participation', 'organizingAuth', 'venue', 'fileUrl'],
   university: ['committeeOrTask', 'authority', 'participation', 'dateFrom', 'dateTo', 'fileUrl'],
   community: ['committeeOrTask', 'authority', 'participation', 'dateFrom', 'dateTo', 'fileUrl'],

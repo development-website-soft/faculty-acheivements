@@ -14,12 +14,15 @@ const hodNavItems = [
   { href: "/hod/dashboard", icon: BarChart3, label: "Dashboard" },
   { href: "/hod/appraisals", icon: ClipboardList, label: "Appraisal List" },
   { href: "/hod/achievements", icon: Award, label: "Faculty Achievements" },
-  { href: "/hod/analytics", icon: History, label: "Analytics" },
+  { href: "/hod/analytics", icon: History, label: "Department Analytics" },
+  { href: "/hod/reports", icon: FileText, label: "Reports & Downloads" },
 ]
 
 const myAppraisalItems = [
-  { href: "/hod/appraisal/achievements", icon: FileText, label: "Update Achievements" },
+  { href: "/hod/appraisal/current", icon: FileText, label: "Update Achievements" },
+  { href: "/hod/appraisal/achievements", icon: Award, label: "My Achievements" },
   { href: "/hod/appraisal/results", icon: User, label: "View Results" },
+  { href: "/hod/analytics/personal", icon: BarChart3, label: "Performance Analytics" },
 ]
 
 export function HODSidebar() {
@@ -54,7 +57,9 @@ export function HODSidebar() {
       </div>
 
       {/* Navigation */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 ">
+
+      
         {/* Section: HOME */}
         <div className="px-5 pt-3 pb-1 text-[11px] font-semibold tracking-wider bg-border">
           HOME

@@ -115,10 +115,10 @@ async function handler(req: Request, ctx: { params: Promise<{ id: string }> }) {
     },
   })
 
-  // أول تعديل ينقل NEW → IN_REVIEW
+  // أول تعديل ينقل new → sent
   await prisma.appraisal.update({
     where: { id: appraisalId },
-    data: { status: app.status === 'NEW' ? 'IN_REVIEW' : app.status },
+    data: { status: app.status === 'new' ? 'sent' : app.status },
   })
 
   return NextResponse.json({
@@ -131,3 +131,56 @@ async function handler(req: Request, ctx: { params: Promise<{ id: string }> }) {
 
 export const PATCH = handler
 export const POST = handler
+
+// Add GET method to retrieve existing capabilities evaluations
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await ctx.params
+    const appraisalId = Number(id)
+    if (Number.isNaN(appraisalId)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
+
+    // Get user role for evaluation lookup
+    let role: 'HOD' | 'DEAN' = 'HOD'
+    let user = await requireHOD().catch(() => null)
+    if (!user) { user = await requireDean(); role = 'DEAN' }
+
+    // Find existing evaluation for this role
+    const evaluation = await prisma.evaluation.findUnique({
+      where: {
+        appraisalId_role: { appraisalId, role }
+      }
+    })
+
+    if (!evaluation) {
+      return NextResponse.json({ selections: {}, notes: {} })
+    }
+
+    // Extract capabilities data from rubric JSON
+    const rubric = evaluation.rubric as any
+    const capabilitiesData = rubric?.capabilities || {}
+
+    // Map database RatingBand back to UI band
+    const bandMap: Record<string, string> = {
+      'HIGHLY_EXCEEDS': 'HIGH',
+      'EXCEEDS': 'EXCEEDS',
+      'FULLY_MEETS': 'MEETS',
+      'PARTIALLY_MEETS': 'PARTIAL',
+      'NEEDS_IMPROVEMENT': 'NEEDS',
+    }
+
+    const selections: Record<string, string> = {}
+    if (capabilitiesData.selections) {
+      Object.entries(capabilitiesData.selections).forEach(([key, value]: [string, any]) => {
+        selections[key] = bandMap[value] || value
+      })
+    }
+
+    return NextResponse.json({
+      selections,
+      notes: capabilitiesData.note || null,
+      capabilitiesPts: evaluation.capabilitiesPts,
+    })
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? 'Bad Request' }, { status: 400 })
+  }
+}
