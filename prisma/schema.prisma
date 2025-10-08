@@ -388,6 +388,10 @@ model Evidence {
   fileKey     String?
   points      Float?
 
+  // معلومات ربط الملف بالإنجاز الصحيح
+  achievementType String? // 'awards', 'research', 'scientific', 'university', 'community'
+  linkedAchievementId Int? // ID الإنجاز في الجدول الصحيح بعد إنشائه
+
   createdAt   DateTime  @default(now())
 }
 

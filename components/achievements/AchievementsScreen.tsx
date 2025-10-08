@@ -69,7 +69,7 @@ function Field({ label, children }:{ label:string; children:any }){
 
 function Input(props:any){ return <input {...props} className={`border rounded px-3 py-2 w-full ${props.className||''}`} /> }
 
-function FileInput({ label, value, onChange, entityType, entityId }: { label: string; value?: string; onChange: (value: string) => void; entityType: string; entityId: string }) {
+function FileInput({ label, value, onChange, entityType, entityId, achievementType }: { label: string; value?: string; onChange: (value: string) => void; entityType: string; entityId: string; achievementType?: string }) {
   const [isUploading, setIsUploading] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -82,6 +82,9 @@ function FileInput({ label, value, onChange, entityType, entityId }: { label: st
       formData.append('file', file)
       formData.append('type', entityType)
       formData.append('entityId', entityId)
+      if (achievementType) {
+        formData.append('achievementType', achievementType)
+      }
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -92,11 +95,12 @@ function FileInput({ label, value, onChange, entityType, entityId }: { label: st
         const data = await response.json()
         onChange(data.url)
       } else {
-        alert('Failed to upload file')
+        const errorData = await response.json().catch(() => ({}))
+        alert(`فشل في رفع الملف: ${errorData.error || 'خطأ غير معروف'}`)
       }
     } catch (error) {
       console.error('Upload error:', error)
-      alert('Failed to upload file')
+      alert('فشل في رفع الملف. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.')
     } finally {
       setIsUploading(false)
     }
@@ -182,26 +186,57 @@ export default function AchievementsScreen(){
   const appraisalId = data?.appraisalId
 
   async function add(resource:string, payload:any){
-    const res = await fetch(`/api/appraisals/current/${resource}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
-    if (!res.ok) { alert('Failed to add'); return }
-    await mutate()
-    setModal(null)
+    try {
+      const res = await fetch(`/api/appraisals/current/${resource}`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        alert(`Failed to add: ${errorData.error || 'Unknown error'}`)
+        return
+      }
+      await mutate()
+      setModal(null)
+    } catch (error) {
+      console.error('Error adding achievement:', error)
+      alert('Failed to add achievement. Please try again.')
+    }
   }
   async function edit(resource:string, id:number, payload:any){
-    const res = await fetch(`/api/appraisals/current/${resource}/${id}`, {
-      method:'PATCH',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    })
-    if (!res.ok) { alert('Failed to update'); return }
-    await mutate()
-    setModal(null)
+    try {
+      const res = await fetch(`/api/appraisals/current/${resource}/${id}`, {
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        alert(`Failed to update: ${errorData.error || 'Unknown error'}`)
+        return
+      }
+      await mutate()
+      setModal(null)
+    } catch (error) {
+      console.error('Error updating achievement:', error)
+      alert('Failed to update achievement. Please try again.')
+    }
   }
   async function del(resource:string, id:number){
-    if (!confirm('Delete this item?')) return
-    const res = await fetch(`/api/appraisals/current/${resource}/${id}`, { method:'DELETE' })
-    if (!res.ok) { alert('Failed'); return }
-    await mutate()
+    if (!confirm('هل أنت متأكد من حذف هذا العنصر؟')) return
+    try {
+      const res = await fetch(`/api/appraisals/current/${resource}/${id}`, { method:'DELETE' })
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        alert(`فشل في الحذف: ${errorData.error || 'خطأ غير معروف'}`)
+        return
+      }
+      await mutate()
+    } catch (error) {
+      console.error('Error deleting achievement:', error)
+      alert('فشل في حذف الإنجاز. يرجى المحاولة مرة أخرى.')
+    }
   }
 
   if (isLoading) return <p>Loading…</p>
@@ -220,7 +255,6 @@ export default function AchievementsScreen(){
   // ------------------ Awards ------------------
   const awardsCols = [
     { key:'name', label:'Name' },
-    { key:'type', label:'Type' },
     { key:'area', label:'Generated Area' },
     { key:'organization', label:'Generating Organization' },
     { key:'dateObtained', label:'Date Obtained', render:(v:any)=> v? new Date(v).toLocaleDateString():'—' },
@@ -500,24 +534,10 @@ function AwardModal({ open, title, onClose, onSubmit, editData, appraisalId }:{ 
     <Modal open={open} title={title} onClose={onClose}>
       <form onSubmit={(e)=>{e.preventDefault(); onSubmit(p)}}>
         <Field label="Name"><Input value={p.name||''} onChange={(e: any)=>setP({...p,name:e.target.value})} /></Field>
-        <Field label="Type">
-          <Select value={p.type||''} onValueChange={(value)=>setP({...p,type:value})}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select award type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="certificate">Certificate</SelectItem>
-              <SelectItem value="award">Award</SelectItem>
-              <SelectItem value="recognition">Recognition</SelectItem>
-              <SelectItem value="honor">Honor</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
         <Field label="Generated Area"><Input value={p.area||''} onChange={(e: any)=>setP({...p,area:e.target.value})} /></Field>
         <Field label="Generating Organization"><Input value={p.organization||''} onChange={(e: any)=>setP({...p,organization:e.target.value})} /></Field>
-        <Field label="Date Obtained"><Input type="date" value={p.dateObtained||''} onChange={(e: any)=>setP({...p,dateObtained:e.target.value})} /></Field>
-        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} />
+        <Field label="Date Obtained"><Input type="date" value={p.dateObtained ? new Date(p.dateObtained).toISOString().split('T')[0] : ''} onChange={(e: any)=>setP({...p,dateObtained:e.target.value})} /></Field>
+        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} achievementType="awards" />
         <Actions onCancel={onClose} />
       </form>
     </Modal>
@@ -525,8 +545,17 @@ function AwardModal({ open, title, onClose, onSubmit, editData, appraisalId }:{ 
 }
 
 // COURSES
-function CourseModal({ open, title, onClose, onSubmit }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void }){
-  const [p, setP] = useState<any>({})
+function CourseModal({ open, title, onClose, onSubmit, editData }:{ open:boolean; title:string; onClose:()=>void; onSubmit:(p:any)=>void; editData?:any }){
+   const [p, setP] = useState<any>(editData || {})
+
+   // Update state when editData changes
+   useEffect(() => {
+     if (editData) {
+       setP(editData)
+     } else {
+       setP({})
+     }
+   }, [editData])
   return (
     <Modal open={open} title={title} onClose={onClose}>
       <form onSubmit={(e)=>{e.preventDefault(); onSubmit(p)}}>
@@ -576,19 +605,19 @@ function ResearchModalPublished({ open, title, onClose, onSubmit, editData, appr
         <Field label="Type">
           <Select value={p.type||''} onValueChange={(value)=>setP({...p,type:value})}>
             <SelectTrigger>
-              <SelectValue placeholder="Select type" />
+              <SelectValue placeholder="Select research activity type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Journal">Journal</SelectItem>
-              <SelectItem value="Conference">Conference</SelectItem>
-              <SelectItem value="Other">Other</SelectItem>
+              <SelectItem value="JOURNAL">Journal</SelectItem>
+              <SelectItem value="CONFERENCE">Conference</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
             </SelectContent>
           </Select>
         </Field>
         <Field label="Name Of The Journal"><Input value={p.journalOrPublisher||''} onChange={(e: any)=>setP({...p,journalOrPublisher:e.target.value})} /></Field>
         <Field label="Nature Of Participation"><Input value={p.participation||''} onChange={(e: any)=>setP({...p,participation:e.target.value})} /></Field>
-        <Field label="Date Of Publication"><Input type="date" value={p.publicationDate||''} onChange={(e: any)=>setP({...p,publicationDate:e.target.value})} /></Field>
-        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} />
+        <Field label="Date Of Publication"><Input type="date" value={p.publicationDate ? new Date(p.publicationDate).toISOString().split('T')[0] : ''} onChange={(e: any)=>setP({...p,publicationDate:e.target.value})} /></Field>
+        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} achievementType="research" />
         <Actions onCancel={onClose} />
       </form>
     </Modal>
@@ -614,19 +643,19 @@ function ResearchModalArticle({ open, title, onClose, onSubmit, editData, apprai
         <Field label="Type">
           <Select value={p.type||''} onValueChange={(value)=>setP({...p,type:value})}>
             <SelectTrigger>
-              <SelectValue placeholder="Select type" />
+              <SelectValue placeholder="Select research activity type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Journal">Journal</SelectItem>
-              <SelectItem value="Conference">Conference</SelectItem>
-              <SelectItem value="Other">Other</SelectItem>
+              <SelectItem value="JOURNAL">Journal</SelectItem>
+              <SelectItem value="CONFERENCE">Conference</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
             </SelectContent>
           </Select>
         </Field>
         <Field label="Refereed Article Reference"><Input value={p.refereedArticleRef||''} onChange={e=>setP({...p,refereedArticleRef:e.target.value})} /></Field>
         <Field label="Name Of The Journal"><Input value={p.journalOrPublisher||''} onChange={e=>setP({...p,journalOrPublisher:e.target.value})} /></Field>
-        <Field label="Date Of Submitting"><Input type="date" value={p.publicationDate||''} onChange={e=>setP({...p,publicationDate:e.target.value})} /></Field>
-        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} />
+        <Field label="Date Of Submitting"><Input type="date" value={p.publicationDate ? new Date(p.publicationDate).toISOString().split('T')[0] : ''} onChange={e=>setP({...p,publicationDate:e.target.value})} /></Field>
+        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} achievementType="research" />
         <Actions onCancel={onClose} />
       </form>
     </Modal>
@@ -649,12 +678,39 @@ function ScientificModal({ open, title, onClose, onSubmit, editData, appraisalId
     <Modal open={open} title={title} onClose={onClose}>
       <form onSubmit={(e)=>{e.preventDefault(); onSubmit(p)}}>
         <Field label="Title"><Input value={p.title||''} onChange={e=>setP({...p,title:e.target.value})} /></Field>
-        <Field label="Type"><Input placeholder="Conference/Workshop/Seminar" value={p.type||''} onChange={e=>setP({...p,type:e.target.value})} /></Field>
-        <Field label="Date"><Input type="date" value={p.date||''} onChange={e=>setP({...p,date:e.target.value})} /></Field>
-        <Field label="Type Of Participation"><Input value={p.participation||''} onChange={e=>setP({...p,participation:e.target.value})} /></Field>
+        <Field label="Type">
+          <Select value={p.type||''} onValueChange={(value)=>setP({...p,type:value})}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select scientific activity type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="CONFERENCE">Conference</SelectItem>
+              <SelectItem value="SEMINAR">Seminar</SelectItem>
+              <SelectItem value="WORKSHOP">Workshop</SelectItem>
+              <SelectItem value="TRAINING">Training</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Date"><Input type="date" value={p.date ? new Date(p.date).toISOString().split('T')[0] : ''} onChange={e=>setP({...p,date:e.target.value})} /></Field>
+        <Field label="Type Of Participation">
+          <Select value={p.participation||''} onValueChange={(value)=>setP({...p,participation:value})}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select participation type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MODERATOR">Moderator</SelectItem>
+              <SelectItem value="COORDINATOR">Coordinator</SelectItem>
+              <SelectItem value="PRESENTER">Presenter</SelectItem>
+              <SelectItem value="PARTICIPANT">Participant</SelectItem>
+              <SelectItem value="PAPER">Paper</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
         <Field label="Organizing Authority"><Input value={p.organizingAuth||''} onChange={e=>setP({...p,organizingAuth:e.target.value})} /></Field>
         <Field label="Venue"><Input value={p.venue||''} onChange={e=>setP({...p,venue:e.target.value})} /></Field>
-        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} />
+        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} achievementType="scientific" />
         <Actions onCancel={onClose} />
       </form>
     </Modal>
@@ -680,10 +736,10 @@ function ServiceModal({ open, title, onClose, onSubmit, editData, appraisalId }:
         <Field label="Authority"><Input value={p.authority||''} onChange={e=>setP({...p,authority:e.target.value})} /></Field>
         <Field label="Nature Of Participation"><Input value={p.participation||''} onChange={e=>setP({...p,participation:e.target.value})} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Date From"><Input type="date" value={p.dateFrom||''} onChange={e=>setP({...p,dateFrom:e.target.value})} /></Field>
-          <Field label="Date To"><Input type="date" value={p.dateTo||''} onChange={e=>setP({...p,dateTo:e.target.value})} /></Field>
+          <Field label="Date From"><Input type="date" value={p.dateFrom ? new Date(p.dateFrom).toISOString().split('T')[0] : ''} onChange={e=>setP({...p,dateFrom:e.target.value})} /></Field>
+          <Field label="Date To"><Input type="date" value={p.dateTo ? new Date(p.dateTo).toISOString().split('T')[0] : ''} onChange={e=>setP({...p,dateTo:e.target.value})} /></Field>
         </div>
-        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} />
+        <FileInput label="Attachment" value={p.attachment||''} onChange={(value)=>setP({...p,attachment:value,fileUrl:value,fileKey:value})} entityType="achievement" entityId={appraisalId?.toString() || ''} achievementType="university" />
         <Actions onCancel={onClose} />
       </form>
     </Modal>

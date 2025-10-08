@@ -133,6 +133,43 @@ export async function POST(req: NextRequest, { params }: { params: { resource: s
       data: { ...data, appraisalId: appraisal.id },
     });
 
+    // Link uploaded files from Evidence table to the newly created achievement
+    if (resource === "awards" || resource === "research" || resource === "scientific" || resource === "university" || resource === "community") {
+      try {
+        // Find unlinked evidence files for this achievement type and appraisal
+        const relatedFiles = await prisma.evidence.findMany({
+          where: {
+            appraisalId: appraisal.id,
+            achievementType: resource, // resource matches achievementType (awards, research, etc.)
+            linkedAchievementId: null, // Only unlinked files
+          },
+        });
+
+        // Link each file to the newly created achievement
+        for (const file of relatedFiles) {
+          await prisma.evidence.update({
+            where: { id: file.id },
+            data: { linkedAchievementId: created.id },
+          });
+
+          // Also update the achievement record with file information
+          if (created.attachment !== file.url) {
+            await (delegate as any).update({
+              where: { id: created.id },
+              data: {
+                attachment: file.url,
+                fileUrl: file.url,
+                fileKey: file.fileKey,
+              },
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error linking files to achievement:", error);
+        // Don't fail the request if file linking fails
+      }
+    }
+
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {
     console.error(e);

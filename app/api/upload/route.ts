@@ -50,8 +50,9 @@ export async function POST(request: NextRequest) {
      const file = formData.get("file") as File
      const type = formData.get("type") as string // 'appraisal' or 'achievement'
      const entityId = formData.get("entityId") as string
+     const achievementType = formData.get("achievementType") as string // 'awards', 'research', 'scientific', 'university', 'community'
 
-     console.log("Parsed values:", { file: !!file, type: type, entityId: entityId })
+     console.log("Parsed values:", { file: !!file, type: type, entityId: entityId, achievementType: achievementType })
 
      if (!file) {
        console.log("No file provided")
@@ -143,16 +144,20 @@ export async function POST(request: NextRequest) {
          },
        })
      } else if (type === "achievement") {
-       // For achievements, we'll use the Evidence model as well
-       // The specific achievement type should be handled by the calling component
+       // For achievements, save to Evidence table with achievementType for later linking
+       if (!achievementType) {
+         return NextResponse.json({ error: "achievementType is required for achievement uploads" }, { status: 400 })
+       }
+
        await prisma.evidence.create({
          data: {
            appraisalId: parseInt(entityId),
            title: file.name,
-           description: "Uploaded achievement file",
+           description: `Uploaded ${achievementType} file`,
            url: relativePath,
            fileKey: filename,
            points: 0,
+           achievementType: achievementType,
          },
        })
      }
