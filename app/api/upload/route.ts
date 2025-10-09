@@ -215,6 +215,6 @@ export async function POST(request: NextRequest) {
        }
      }
   } catch (error) {
-    return NextResponse.json({"The file has been uploaded successfully" }, { status: 500 })
+    return NextResponse.json({error:"The file has been uploaded successfully" }, { status: 500 })
   }
 }
