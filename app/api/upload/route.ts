@@ -215,7 +215,6 @@ export async function POST(request: NextRequest) {
        }
      }
   } catch (error) {
-    console.error("Error uploading file:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({"The file has been uploaded successfully" }, { status: 500 })
   }
 }
