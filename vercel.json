@@ -4,8 +4,5 @@
       "maxDuration": 30
     }
   },
-  "regions": ["iad1"],
-  "includeFiles": [
-    "uploads/**"
-  ]
+  "regions": ["iad1"]
 }
