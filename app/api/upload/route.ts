@@ -106,56 +106,114 @@ export async function POST(request: NextRequest) {
      const extension = file.name.split(".").pop() || 'bin'
      const filename = `${entityId}-${timestamp}.${extension}`
 
-     // Upload to Vercel Blob Storage
-     const bytes = await file.arrayBuffer()
-     const buffer = Buffer.from(bytes)
+     try {
+       // Upload to Vercel Blob Storage
+       const bytes = await file.arrayBuffer()
+       const buffer = Buffer.from(bytes)
 
-     console.log("Uploading to blob storage:", filename)
-     const blob = await put(filename, buffer, {
-       access: 'public',
-       contentType: file.type,
-     })
+       console.log("Uploading to blob storage:", filename)
+       const blob = await put(filename, buffer, {
+         access: 'public',
+         contentType: file.type,
+         token: process.env.BLOB_READ_WRITE_TOKEN,
+       })
 
-     console.log("Blob upload successful:", blob.url)
+       console.log("Blob upload successful:", blob.url)
 
-     // Save file record to database
-     const blobUrl = blob.url
+       // Save file record to database
+       const blobUrl = blob.url
 
-    if (type === "appraisal") {
-      await prisma.evidence.create({
-        data: {
-          appraisalId: parseInt(entityId),
-          title: file.name,
-          description: "Uploaded evidence file",
-          url: blobUrl,
-          fileKey: filename,
-          points: 0,
-        },
-      })
-    } else if (type === "achievement") {
-      // For achievements, save to Evidence table with achievementType for later linking
-      if (!achievementType) {
-        return NextResponse.json({ error: "achievementType is required for achievement uploads" }, { status: 400 })
-      }
+       if (type === "appraisal") {
+         await prisma.evidence.create({
+           data: {
+             appraisalId: parseInt(entityId),
+             title: file.name,
+             description: "Uploaded evidence file",
+             url: blobUrl,
+             fileKey: filename,
+             points: 0,
+           },
+         })
+       } else if (type === "achievement") {
+         // For achievements, save to Evidence table with achievementType for later linking
+         if (!achievementType) {
+           return NextResponse.json({ error: "achievementType is required for achievement uploads" }, { status: 400 })
+         }
 
-      await prisma.evidence.create({
-        data: {
-          appraisalId: parseInt(entityId),
-          title: file.name,
-          description: `Uploaded ${achievementType} file`,
-          url: blobUrl,
-          fileKey: filename,
-          points: 0,
-          achievementType: achievementType,
-        },
-      })
-    }
+         await prisma.evidence.create({
+           data: {
+             appraisalId: parseInt(entityId),
+             title: file.name,
+             description: `Uploaded ${achievementType} file`,
+             url: blobUrl,
+             fileKey: filename,
+             points: 0,
+             achievementType: achievementType,
+           },
+         })
+       }
 
-   return NextResponse.json({
-     message: "File uploaded successfully",
-     filename,
-     url: blobUrl,
-   })
+       return NextResponse.json({
+         message: "File uploaded successfully",
+         filename,
+         url: blobUrl,
+       })
+     } catch (blobError) {
+       console.error("Blob storage error:", blobError)
+
+       // Fallback: Try alternative storage method
+       try {
+         console.log("Attempting fallback storage method...")
+
+         // For now, return a base64 data URL as fallback
+         // This is a temporary solution until proper blob storage is configured
+         const bytes = await file.arrayBuffer()
+         const buffer = Buffer.from(bytes)
+         const base64Data = buffer.toString('base64')
+         const dataUrl = `data:${file.type};base64,${base64Data}`
+
+         // Save to database with data URL
+         if (type === "appraisal") {
+           await prisma.evidence.create({
+             data: {
+               appraisalId: parseInt(entityId),
+               title: file.name,
+               description: "Uploaded evidence file (fallback method)",
+               url: dataUrl,
+               fileKey: filename,
+               points: 0,
+             },
+           })
+         } else if (type === "achievement") {
+           if (!achievementType) {
+             return NextResponse.json({ error: "achievementType is required for achievement uploads" }, { status: 400 })
+           }
+
+           await prisma.evidence.create({
+             data: {
+               appraisalId: parseInt(entityId),
+               title: file.name,
+               description: `Uploaded ${achievementType} file (fallback method)`,
+               url: dataUrl,
+               fileKey: filename,
+               points: 0,
+               achievementType: achievementType,
+             },
+           })
+         }
+
+         return NextResponse.json({
+           message: "File uploaded successfully (fallback method)",
+           filename,
+           url: dataUrl,
+         })
+       } catch (fallbackError) {
+         console.error("Fallback storage also failed:", fallbackError)
+         return NextResponse.json({
+           error: "Failed to upload file. Both blob storage and fallback method failed."
+         }, { status: 500 })
+       }
+     }
   } catch (error) {
     console.error("Error uploading file:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
