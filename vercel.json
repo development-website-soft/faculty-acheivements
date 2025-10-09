@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "app/api/upload/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "regions": ["iad1"],
+  "includeFiles": [
+    "uploads/**"
+  ]
+}
