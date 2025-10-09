@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
-import { writeFile, mkdir } from "fs/promises"
-import { join } from "path"
-import { existsSync } from "fs"
+import { put } from "@vercel/blob"
 import { prisma } from "@/lib/prisma" // Declare the prisma variable
 
 export async function POST(request: NextRequest) {
@@ -89,15 +87,9 @@ export async function POST(request: NextRequest) {
        return NextResponse.json({ error: "File too large. Maximum size is 10MB" }, { status: 400 })
      }
 
-     // Create upload directory
-     console.log("=== STARTING UPLOAD DEBUG ===")
-     console.log("Session user id:", session.user.id, "type:", typeof session.user.id)
-     console.log("Session user:", session.user)
-     console.log("Process cwd:", process.cwd(), "type:", typeof process.cwd())
-     console.log("Type:", type, "type of:", typeof type)
-
-     const userId = session.user.id || (session as any).userId
-     console.log("Extracted userId:", userId, "type:", typeof userId)
+     // Upload file to Vercel Blob Storage
+     console.log("=== STARTING BLOB UPLOAD ===")
+     const userId = session.user.id
 
      if (!userId || typeof userId !== 'string') {
        console.error("VALIDATION FAILED - No valid user ID:", {
@@ -109,64 +101,61 @@ export async function POST(request: NextRequest) {
        return NextResponse.json({ error: "User ID not available" }, { status: 400 })
      }
 
-     console.log("VALIDATION PASSED - About to call join()")
-     console.log("Parameters:", { cwd: process.cwd(), uploads: "uploads", type: type, userId: userId })
+     // Generate unique filename
+     const timestamp = Date.now()
+     const extension = file.name.split(".").pop() || 'bin'
+     const filename = `${entityId}-${timestamp}.${extension}`
 
-     const uploadDir = join(process.cwd(), "uploads", type, userId)
-     console.log("JOIN RESULT:", uploadDir, "type:", typeof uploadDir)
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true })
-    }
+     // Upload to Vercel Blob Storage
+     const bytes = await file.arrayBuffer()
+     const buffer = Buffer.from(bytes)
 
-    // Generate unique filename
-    const timestamp = Date.now()
-    const extension = file.name.split(".").pop()
-    const filename = `${entityId}-${timestamp}.${extension}`
-    const filepath = join(uploadDir, filename)
+     console.log("Uploading to blob storage:", filename)
+     const blob = await put(filename, buffer, {
+       access: 'public',
+       contentType: file.type,
+     })
 
-    // Save file
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    await writeFile(filepath, buffer)
+     console.log("Blob upload successful:", blob.url)
 
-    // Save file record to database
-    const relativePath = join("uploads", type, userId, filename)
+     // Save file record to database
+     const blobUrl = blob.url
 
     if (type === "appraisal") {
-       await prisma.evidence.create({
-         data: {
-           appraisalId: parseInt(entityId),
-           title: file.name,
-           description: "Uploaded evidence file",
-           url: relativePath,
-           fileKey: filename,
-           points: 0,
-         },
-       })
-     } else if (type === "achievement") {
-       // For achievements, save to Evidence table with achievementType for later linking
-       if (!achievementType) {
-         return NextResponse.json({ error: "achievementType is required for achievement uploads" }, { status: 400 })
-       }
+      await prisma.evidence.create({
+        data: {
+          appraisalId: parseInt(entityId),
+          title: file.name,
+          description: "Uploaded evidence file",
+          url: blobUrl,
+          fileKey: filename,
+          points: 0,
+        },
+      })
+    } else if (type === "achievement") {
+      // For achievements, save to Evidence table with achievementType for later linking
+      if (!achievementType) {
+        return NextResponse.json({ error: "achievementType is required for achievement uploads" }, { status: 400 })
+      }
 
-       await prisma.evidence.create({
-         data: {
-           appraisalId: parseInt(entityId),
-           title: file.name,
-           description: `Uploaded ${achievementType} file`,
-           url: relativePath,
-           fileKey: filename,
-           points: 0,
-           achievementType: achievementType,
-         },
-       })
-     }
+      await prisma.evidence.create({
+        data: {
+          appraisalId: parseInt(entityId),
+          title: file.name,
+          description: `Uploaded ${achievementType} file`,
+          url: blobUrl,
+          fileKey: filename,
+          points: 0,
+          achievementType: achievementType,
+        },
+      })
+    }
 
-    return NextResponse.json({
-      message: "File uploaded successfully",
-      filename,
-      path: relativePath,
-    })
+   return NextResponse.json({
+     message: "File uploaded successfully",
+     filename,
+     url: blobUrl,
+   })
   } catch (error) {
     console.error("Error uploading file:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
