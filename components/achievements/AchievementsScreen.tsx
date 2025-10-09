@@ -96,11 +96,11 @@ function FileInput({ label, value, onChange, entityType, entityId, achievementTy
         onChange(data.url)
       } else {
         const errorData = await response.json().catch(() => ({}))
-        alert(`فشل في رفع الملف: ${errorData.error || 'خطأ غير معروف'}`)
+        alert(`Failed to upload the file: ${errorData.error || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Upload error:', error)
-      alert('فشل في رفع الملف. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.')
+      alert('Failed to upload the file. Please check your internet connection and try again..')
     } finally {
       setIsUploading(false)
     }
@@ -224,18 +224,18 @@ export default function AchievementsScreen(){
     }
   }
   async function del(resource:string, id:number){
-    if (!confirm('هل أنت متأكد من حذف هذا العنصر؟')) return
+    if (!confirm('Are you sure you want to delete this item?')) return
     try {
       const res = await fetch(`/api/appraisals/current/${resource}/${id}`, { method:'DELETE' })
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}))
-        alert(`فشل في الحذف: ${errorData.error || 'خطأ غير معروف'}`)
+        alert(`Failed to update: ${errorData.error || 'Unknown error'}`)
         return
       }
       await mutate()
     } catch (error) {
       console.error('Error deleting achievement:', error)
-      alert('فشل في حذف الإنجاز. يرجى المحاولة مرة أخرى.')
+      alert('Failed to delete the achievement. Please try again.')
     }
   }
 
