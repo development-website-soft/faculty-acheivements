@@ -155,18 +155,7 @@ export default function AllAchievementsScreen({ cycles }:{ cycles: Array<{ id:nu
              </Select>
            </div>
 
-           <div>
-             <label className="block text-sm font-medium mb-2">Search</label>
-             <div className="relative">
-               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-               <Input
-                 placeholder="Search achievements..."
-                 value={q}
-                 onChange={(e) => setQ(e.target.value)}
-                 className="pl-10"
-               />
-             </div>
-           </div>
+
          </div>
 
          {current && (

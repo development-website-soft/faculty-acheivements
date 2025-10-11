@@ -579,7 +579,7 @@ function CourseModal({ open, title, onClose, onSubmit, editData }:{ open:boolean
           <Field label="Course Credit"><Input type="number" step="0.5" value={p.credit||''} onChange={e=>setP({...p,credit:Number(e.target.value)})} /></Field>
           <Field label="Number Of Students"><Input type="number" value={p.studentsCount||''} onChange={e=>setP({...p,studentsCount:Number(e.target.value)})} /></Field>
         </div>
-        <Field label="Student Evaluation Average"><Input type="number" step="0.01" min="0" max="5" placeholder="4.5" value={p.studentsEvalAvg||''} onChange={e=>setP({...p,studentsEvalAvg:Number(e.target.value)})} /></Field>
+        <Field label="Student Evaluation Average"><Input type="number" step="0.01" min="0" placeholder="4.5" value={p.studentsEvalAvg||''} onChange={e=>setP({...p,studentsEvalAvg:Number(e.target.value)})} /></Field>
         <Actions onCancel={onClose} />
       </form>
     </Modal>

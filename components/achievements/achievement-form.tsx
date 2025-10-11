@@ -45,7 +45,7 @@ export function AchievementForm({ appraisalId, type, onSuccess, onCancel }: Achi
         case "scientific":
           endpoint = "/api/scientific-activities"
           break
-        case "university":
+        case "university"
           endpoint = "/api/university-services"
           break
         case "community":

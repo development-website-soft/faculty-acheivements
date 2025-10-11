@@ -7,7 +7,7 @@ import { signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
-import { Home,History, ClipboardList, Award, FileText, LogOut, Menu, X, BarChart3 } from "lucide-react"
+import { Home,History, ClipboardList, Award, FileText, LogOut, Menu, X, BarChart3, Edit, User } from "lucide-react"
 import { ScrollArea } from "@radix-ui/react-scroll-area"
 
 const deanNavItems = [
@@ -16,7 +16,8 @@ const deanNavItems = [
   { href: "/dean/achievements", icon: Award, label: "Faculty Achievements" },
   { href: "/dean/analytics", icon: History, label: "Analytics" },
   { href: "/dean/reports", icon: FileText, label: "Reports" },
-
+  { href: "/dean/achievements", icon: Edit, label: "Update Achievements" },
+  { href: "/dean/achievements/my", icon: User, label: "My Achievements" },
 ]
 
 export function DeanSidebar() {

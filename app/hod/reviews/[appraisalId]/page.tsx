@@ -2,8 +2,9 @@
 
 import { notFound } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
-import { requireHOD } from '@/lib/auth-utils';
+import { authOptions } from '@/lib/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -20,26 +21,55 @@ async function computeAll(appraisalId: number) {
     });
     if (!appraisal) throw new Error('Appraisal not found');
 
-    // Simplified scoring logic
-    const researchPts = appraisal.researchActivities.filter(r => r.kind === ResearchKind.PUBLISHED).length * 5;
-    const universityServicePts = appraisal.universityServices.length * 2;
-    const communityServicePts = appraisal.communityServices.length * 2;
-    // Placeholder for teaching score
-    const teachingQualityPts = appraisal.courses.reduce((acc, course) => acc + (course.studentsEvalAvg ?? 0), 0) / (appraisal.courses.length || 1);
+    // Calculate scores based on the actual grading configuration
+    const researchScore = appraisal.researchActivities.reduce((sum, activity) => {
+        // Use the actual research kind values from the database
+        switch (activity.kind) {
+            case ResearchKind.PUBLISHED: return sum + 10;
+            case ResearchKind.ACCEPTED: return sum + 8;
+            case ResearchKind.REFEREED_PAPER: return sum + 4;
+            default: return sum + 2;
+        }
+    }, 0);
 
-    const totalScore = researchPts + universityServicePts + communityServicePts + teachingQualityPts;
+    const universityServiceScore = Math.min(appraisal.universityServices.length * 4, 20);
+    const communityServiceScore = Math.min(appraisal.communityServices.length * 4, 20);
+
+    const teachingScore = appraisal.courses.length > 0
+        ? appraisal.courses.reduce((sum, course) => sum + (course.studentsEvalAvg || 0), 0) / appraisal.courses.length
+        : 0;
+
+    const totalScore = researchScore + universityServiceScore + communityServiceScore + teachingScore;
 
     await prisma.$transaction([
         prisma.evaluation.upsert({
             where: { appraisalId_role: { appraisalId, role: 'HOD' } },
-            update: { researchPts, universityServicePts, communityServicePts, teachingQualityPts, totalScore },
-            create: { appraisalId, role: 'HOD', researchPts, universityServicePts, communityServicePts, teachingQualityPts, totalScore },
+            update: {
+                researchPts: researchScore,
+                universityServicePts: universityServiceScore,
+                communityServicePts: communityServiceScore,
+                teachingQualityPts: teachingScore,
+                totalScore
+            },
+            create: {
+                appraisalId,
+                role: 'HOD',
+                researchPts: researchScore,
+                universityServicePts: universityServiceScore,
+                communityServicePts: communityServiceScore,
+                teachingQualityPts: teachingScore,
+                totalScore
+            },
         }),
         prisma.appraisal.update({
             where: { id: appraisalId },
             data: {
+                researchScore,
+                universityServiceScore,
+                communityServiceScore,
+                teachingQualityScore: teachingScore,
                 totalScore,
-                status: appraisal.status === 'NEW' ? 'IN_REVIEW' : appraisal.status
+                status: EvaluationStatus.sent
             },
         })
     ]);
@@ -47,10 +77,9 @@ async function computeAll(appraisalId: number) {
 }
 
 async function sendScores(appraisalId: number) {
-    'use server'
     await prisma.appraisal.update({
         where: { id: appraisalId },
-        data: { status: 'SCORES_SENT' },
+        data: { status: EvaluationStatus.sent },
     });
     revalidatePath(`/hod/reviews/${appraisalId}`);
 }
@@ -76,13 +105,29 @@ async function getAppraisalData(appraisalId: number, hodUserId: number) {
 
 // --- PAGE COMPONENT ---
 export default async function ReviewPage({ params }: { params: Promise<{ appraisalId: string }> }) {
-    const user = await requireHOD();
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user) {
+        notFound();
+    }
+
+    // Check if user is HOD
+    if (session.user.role !== 'HOD') {
+        notFound();
+    }
+
     const { appraisalId: appraisalIdStr } = await params;
     const appraisalId = parseInt(appraisalIdStr, 10);
-    if (isNaN(appraisalId)) notFound();
 
-    const appraisal = await getAppraisalData(appraisalId, parseInt(user.id));
-    if (!appraisal) notFound();
+    if (isNaN(appraisalId)) {
+        notFound();
+    }
+
+    const appraisal = await getAppraisalData(appraisalId, parseInt(session.user.id));
+
+    if (!appraisal) {
+        notFound();
+    }
 
     const { faculty, cycle, status } = appraisal;
 
@@ -96,7 +141,9 @@ export default async function ReviewPage({ params }: { params: Promise<{ apprais
                             <p className="text-muted-foreground">{faculty.name} - {faculty.department?.name ?? 'N/A'}</p>
                         </div>
                         <div className="text-right">
-                            <p className="font-semibold">{cycle.academicYear} - {cycle.semester}</p>
+                            <p className="font-semibold">
+                                {cycle.academicYear} ({new Date(cycle.startDate).getFullYear()} - {new Date(cycle.endDate).getFullYear()})
+                            </p>
                             <Badge>{status}</Badge>
                         </div>
                     </div>
@@ -121,10 +168,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ apprais
                 </TabsContent>
 <TabsContent value="evaluation">
   <EvaluationForm
-    appraisalId={appraisal.id}       
-    role="HOD"                       
-    computeAll={computeAll}          
-    sendScores={sendScores}       
+    appraisalId={appraisal.id}
+    role="HOD"
   />
 </TabsContent>
             </Tabs>

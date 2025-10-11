@@ -116,6 +116,7 @@ export async function POST(req: NextRequest, { params }: { params: { resource: s
 
     if (!cycle) return NextResponse.json({ error: "No target cycle found" }, { status: 404 });
 
+    // HODs and Deans can also have their own appraisals for self-evaluation
     let appraisal = await prisma.appraisal.findFirst({
       where: { facultyId: Number(user.id), cycleId: cycle.id },
     });

@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get or create the user's appraisal for this cycle
+    // HODs and Deans can also have appraisals for their own evaluation
     let appraisal = await prisma.appraisal.findFirst({
       where: { facultyId: Number(user.id), cycleId: cycle.id },
     });

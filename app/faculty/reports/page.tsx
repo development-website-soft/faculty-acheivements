@@ -11,18 +11,44 @@ import { Download, FileText, Calendar, CheckCircle } from "lucide-react"
 interface AppraisalCycle {
   id: number
   academicYear: string
-  semester: string
+  startDate: string
+  endDate: string
   isActive: boolean
 }
 
 interface AppraisalData {
-  id: string
-  academicYear: string
-  semester: string
+  id: number
   status: string
   totalScore?: number
   submittedAt?: string
-  completedAt?: string
+  createdAt: string
+  updatedAt: string
+  faculty: {
+    id: number
+    name: string
+    email: string
+    academicRank?: string
+    department: {
+      name: string
+      college: {
+        name: string
+      }
+    }
+  }
+  cycle: {
+    academicYear: string
+    startDate: string
+    endDate: string
+  }
+  achievements: {
+    total: number
+    awards: any[]
+    courses: any[]
+    research: any[]
+    scientific: any[]
+    universityServices: any[]
+    communityServices: any[]
+  }
 }
 
 export default function FacultyReportsPage() {
@@ -44,7 +70,7 @@ export default function FacultyReportsPage() {
 
   const fetchCycles = async () => {
     try {
-      const response = await fetch("/api/admin/appraisal-cycles")
+      const response = await fetch("/api/appraisal-cycles")
       if (response.ok) {
         const data = await response.json()
         setCycles(data)
@@ -55,13 +81,13 @@ export default function FacultyReportsPage() {
   }
 
   const fetchAppraisalData = async () => {
+    if (!selectedCycle) return
+
     try {
-      const response = await fetch(`/api/appraisals?cycleId=${selectedCycle}`)
+      const response = await fetch(`/api/faculty/reports?cycleId=${selectedCycle}`)
       if (response.ok) {
-        const appraisals = await response.json()
-        if (appraisals.length > 0) {
-          setAppraisalData(appraisals[0])
-        }
+        const data = await response.json()
+        setAppraisalData(data)
       }
     } catch (error) {
       console.error("Error fetching appraisal data:", error)
@@ -73,17 +99,25 @@ export default function FacultyReportsPage() {
 
     setIsGenerating(true)
     try {
-      // In a real implementation, this would call an API to generate the PDF
-      // For now, we'll simulate the process
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Call the API to generate the report
+      const response = await fetch(`/api/faculty/reports?cycleId=${selectedCycle}&format=pdf`)
 
-      // Create a simple download link (placeholder)
-      const link = document.createElement('a')
-      link.href = '#' // Would be the actual PDF URL
-      link.download = `appraisal-report-${appraisalData.academicYear}-${appraisalData.semester}.pdf`
-      link.click()
+      if (response.ok) {
+        const reportData = await response.json()
 
-      alert("Report generated successfully!")
+        // In a real implementation, this would trigger PDF download
+        // For now, we'll simulate the download
+        const link = document.createElement('a')
+        link.href = reportData.downloadUrl || '#'
+        link.download = `appraisal-report-${appraisalData.cycle.academicYear}.pdf`
+        if (link.download !== '#') {
+          link.click()
+        }
+
+        alert("Report generated successfully!")
+      } else {
+        throw new Error("Failed to generate report")
+      }
     } catch (error) {
       console.error("Error generating report:", error)
       alert("Failed to generate report")
@@ -94,11 +128,10 @@ export default function FacultyReportsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "COMPLETE": return "bg-green-100 text-green-800"
-      case "SCORES_SENT": return "bg-orange-100 text-orange-800"
-      case "IN_REVIEW": return "bg-yellow-100 text-yellow-800"
-      case "NEW": return "bg-blue-100 text-blue-800"
-      case "RETURNED": return "bg-red-100 text-red-800"
+      case "complete": return "bg-green-100 text-green-800"
+      case "sent": return "bg-orange-100 text-orange-800"
+      case "new": return "bg-blue-100 text-blue-800"
+      case "returned": return "bg-red-100 text-red-800"
       default: return "bg-gray-100 text-gray-800"
     }
   }
@@ -135,7 +168,7 @@ export default function FacultyReportsPage() {
               <SelectContent>
                 {cycles.map((cycle) => (
                   <SelectItem key={cycle.id} value={cycle.id.toString()}>
-                    {cycle.academicYear} - {cycle.semester} {cycle.isActive && "(Active)"}
+                    {cycle.academicYear} ({new Date(cycle.startDate).getFullYear()} - {new Date(cycle.endDate).getFullYear()}) {cycle.isActive && "(Active)"}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -148,47 +181,51 @@ export default function FacultyReportsPage() {
               <h4 className="font-semibold mb-3">Report Preview</h4>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
+                  <span className="text-muted-foreground">Faculty:</span>
+                  <span className="ml-2 font-medium">{appraisalData.faculty.name}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Department:</span>
+                  <span className="ml-2 font-medium">{appraisalData.faculty.department.name}</span>
+                </div>
+                <div>
                   <span className="text-muted-foreground">Cycle:</span>
-                  <span className="ml-2 font-medium">{appraisalData.academicYear} - {appraisalData.semester}</span>
+                  <span className="ml-2 font-medium">{appraisalData.cycle.academicYear}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Status:</span>
-                  <Badge className={`ml-2 ${getStatusColor(appraisalData.status)}`}>
-                    {appraisalData.status}
+                  <Badge className={`ml-2 ${getStatusColor(appraisalData.appraisal.status)}`}>
+                    {appraisalData.appraisal.status}
                   </Badge>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Total Score:</span>
-                  <span className="ml-2 font-medium">{appraisalData.totalScore || "Pending"}%</span>
+                  <span className="ml-2 font-medium">{appraisalData.appraisal.totalScore || "Pending"}%</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Submitted:</span>
-                  <span className="ml-2 font-medium">
-                    {appraisalData.submittedAt
-                      ? new Date(appraisalData.submittedAt).toLocaleDateString()
-                      : "Not submitted"}
-                  </span>
+                  <span className="text-muted-foreground">Total Achievements:</span>
+                  <span className="ml-2 font-medium">{appraisalData.achievements.total}</span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Options */}
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="attachments"
-                checked={includeAttachments}
-                onCheckedChange={setIncludeAttachments}
-              />
-              <label
-                htmlFor="attachments"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Include attachment list in report
-              </label>
-            </div>
-          </div>
+         {/* Options */}
+         <div className="space-y-4">
+           <div className="flex items-center space-x-2">
+             <Checkbox
+               id="attachments"
+               checked={includeAttachments}
+               onCheckedChange={(checked) => setIncludeAttachments(checked === true)}
+             />
+             <label
+               htmlFor="attachments"
+               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+             >
+               Include attachment list in report
+             </label>
+           </div>
+         </div>
 
           {/* Generate Button */}
           <Button

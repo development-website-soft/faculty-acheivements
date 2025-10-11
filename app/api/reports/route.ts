@@ -123,48 +123,39 @@ async function generateAppraisalsReport(session: any, academicYear?: string | nu
 }
 
 async function generateAchievementsReport(session: any, academicYear?: string | null, userId?: string | null) {
-  const whereClause: any = {}
+  // Build the base where clause for appraisals first
+  const appraisalWhereClause: any = {}
 
   // Role-based filtering using proper relationships
   if (session.user.role === UserRole.INSTRUCTOR) {
-    whereClause.appraisal = {
-      facultyId: parseInt(session.user.id)
-    }
+    appraisalWhereClause.facultyId = parseInt(session.user.id)
   } else if (session.user.role === UserRole.HOD) {
     // HOD can see achievements from their department
-    whereClause.appraisal = {
-      faculty: {
-        departmentId: parseInt(session.user.departmentId || '0')
-      }
+    appraisalWhereClause.faculty = {
+      departmentId: parseInt(session.user.departmentId || '0')
     }
   } else if (session.user.role === UserRole.DEAN) {
     // DEAN can see achievements from their college
-    whereClause.appraisal = {
-      faculty: {
-        department: {
-          collegeId: parseInt(session.user.collegeId || '0')
-        }
+    appraisalWhereClause.faculty = {
+      department: {
+        collegeId: parseInt(session.user.collegeId || '0')
       }
     }
   }
 
   if (academicYear) {
-    whereClause.appraisal = {
-      ...whereClause.appraisal,
-      cycle: { academicYear }
-    }
+    appraisalWhereClause.cycle = { academicYear }
   }
   if (userId) {
-    whereClause.appraisal = {
-      ...whereClause.appraisal,
-      facultyId: parseInt(userId)
-    }
+    appraisalWhereClause.facultyId = parseInt(userId)
   }
 
-  // Get achievements from multiple models
+  // Get achievements from multiple models using the correct relationship
   const [awards, researchActivities, scientificActivities, universityServices, communityServices] = await Promise.all([
     prisma.award.findMany({
-      where: whereClause,
+      where: {
+        appraisal: appraisalWhereClause
+      },
       include: {
         appraisal: {
           select: {
@@ -189,7 +180,9 @@ async function generateAchievementsReport(session: any, academicYear?: string | 
       orderBy: { createdAt: "desc" },
     }),
     prisma.researchActivity.findMany({
-      where: whereClause,
+      where: {
+        appraisal: appraisalWhereClause
+      },
       include: {
         appraisal: {
           select: {
@@ -214,7 +207,9 @@ async function generateAchievementsReport(session: any, academicYear?: string | 
       orderBy: { createdAt: "desc" },
     }),
     prisma.scientificActivity.findMany({
-      where: whereClause,
+      where: {
+        appraisal: appraisalWhereClause
+      },
       include: {
         appraisal: {
           select: {
@@ -239,7 +234,9 @@ async function generateAchievementsReport(session: any, academicYear?: string | 
       orderBy: { createdAt: "desc" },
     }),
     prisma.universityService.findMany({
-      where: whereClause,
+      where: {
+        appraisal: appraisalWhereClause
+      },
       include: {
         appraisal: {
           select: {
@@ -264,7 +261,9 @@ async function generateAchievementsReport(session: any, academicYear?: string | 
       orderBy: { createdAt: "desc" },
     }),
     prisma.communityService.findMany({
-      where: whereClause,
+      where: {
+        appraisal: appraisalWhereClause
+      },
       include: {
         appraisal: {
           select: {
@@ -321,31 +320,32 @@ async function generateAchievementsReport(session: any, academicYear?: string | 
 }
 
 async function generatePerformanceReport(session: any, academicYear?: string | null, userId?: string | null) {
-  const whereClause: any = {}
+  // Build the base where clause for appraisals first
+  const appraisalWhereClause: any = {}
 
   // Role-based filtering using proper relationships
   if (session.user.role === UserRole.INSTRUCTOR) {
-    whereClause.facultyId = parseInt(session.user.id)
+    appraisalWhereClause.facultyId = parseInt(session.user.id)
   } else if (session.user.role === UserRole.HOD) {
     // HOD can see appraisals from their department
-    whereClause.faculty = {
+    appraisalWhereClause.faculty = {
       departmentId: parseInt(session.user.departmentId || '0')
     }
   } else if (session.user.role === UserRole.DEAN) {
     // DEAN can see appraisals from their college
-    whereClause.faculty = {
+    appraisalWhereClause.faculty = {
       department: {
         collegeId: parseInt(session.user.collegeId || '0')
       }
     }
   }
 
-  if (academicYear) whereClause.cycle = { academicYear }
-  if (userId) whereClause.facultyId = parseInt(userId)
+  if (academicYear) appraisalWhereClause.cycle = { academicYear }
+  if (userId) appraisalWhereClause.facultyId = parseInt(userId)
 
   const [appraisals, awards, researchActivities, scientificActivities, universityServices, communityServices] = await Promise.all([
     prisma.appraisal.findMany({
-      where: whereClause,
+      where: appraisalWhereClause,
       include: {
         faculty: {
           select: {
@@ -371,7 +371,9 @@ async function generatePerformanceReport(session: any, academicYear?: string | n
       },
     }),
     prisma.award.findMany({
-      where: whereClause,
+      where: {
+        appraisal: appraisalWhereClause
+      },
       include: {
         appraisal: {
           select: {
@@ -381,7 +383,9 @@ async function generatePerformanceReport(session: any, academicYear?: string | n
       },
     }),
     prisma.researchActivity.findMany({
-      where: whereClause,
+      where: {
+        appraisal: appraisalWhereClause
+      },
       include: {
         appraisal: {
           select: {
@@ -391,7 +395,9 @@ async function generatePerformanceReport(session: any, academicYear?: string | n
       },
     }),
     prisma.scientificActivity.findMany({
-      where: whereClause,
+      where: {
+        appraisal: appraisalWhereClause
+      },
       include: {
         appraisal: {
           select: {
@@ -401,7 +407,9 @@ async function generatePerformanceReport(session: any, academicYear?: string | n
       },
     }),
     prisma.universityService.findMany({
-      where: whereClause,
+      where: {
+        appraisal: appraisalWhereClause
+      },
       include: {
         appraisal: {
           select: {
@@ -411,7 +419,9 @@ async function generatePerformanceReport(session: any, academicYear?: string | n
       },
     }),
     prisma.communityService.findMany({
-      where: whereClause,
+      where: {
+        appraisal: appraisalWhereClause
+      },
       include: {
         appraisal: {
           select: {
@@ -447,7 +457,7 @@ async function generatePerformanceReport(session: any, academicYear?: string | n
       cycle: appraisal.cycle,
       appraisal: {
         status: appraisal.status,
-        finalScore: appraisal.finalScore,
+        totalScore: appraisal.totalScore,
         evaluations: appraisal.evaluations,
       },
       achievements: {

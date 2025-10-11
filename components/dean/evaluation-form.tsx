@@ -963,8 +963,8 @@ const PERF_DEAN = {
     HIGH:    { points: 20, summary: 'Student evaluation not less than 90%.' },
     EXCEEDS: { points: 16, summary: 'Student evaluation between 80%–89%.' },
     MEETS:   { points: 12, summary: 'Student evaluation between 60%–79%.' },
-    PARTIAL: { points:  8, summary: 'Student evaluation between 50%–59%.' },
-    NEEDS:   { points:  4, summary: 'Student evaluation less than 50%.' },
+    PARTIAL: { points: 8, summary: 'Student evaluation between 50%–59%.' },
+    NEEDS:   { points: 4, summary: 'Student evaluation less than 50%.' },
   }},
 } as const
 
@@ -1215,21 +1215,33 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
   const overallTotal = performanceTotal + capabilitiesTotal
 
   function pickPerf(key: PerfKey, band: BandKey) {
-    const b = cfg.perf[key].bands[band]
+    const b = cfg.perf[key]?.bands?.[band]
+    if (!b) {
+      console.error(`Band configuration not found for ${key}:${band}`)
+      return // Exit if band configuration not found
+    }
+
+    const points = b.points
     setPerf(prev => ({
       ...prev,
       [key]: {
         ...prev[key],
         band,
-        points: b.points,
-        explanation: [`${BAND_LABEL[band]} (${b.points} pts)`, b.summary].join('\n'),
+        points,
+        explanation: [`${BAND_LABEL[band]} (${points} pts)`, b.summary].join('\n'),
       }
     }))
   }
 
   function pickCap(key: string, band: BandKey) {
-    const pts = cfg.cap.points[band]
-    const exp = cfg.cap.explanations[key][band]
+    const pts = cfg.cap.points?.[band]
+    const exp = cfg.cap.explanations?.[key]?.[band]
+
+    if (exp === undefined || pts === undefined) {
+      console.error(`Capability configuration not found for ${key}:${band}`)
+      return // Exit if configuration not found
+    }
+
     setCaps(prev => ({
       ...prev,
       [key]: {
@@ -1402,14 +1414,18 @@ function calculateTableAverage(tableKey: string): { band: BandKey | null, points
 
   // Get the rubric for this performance category
   const rubric = cfg.perf[perfKey]
+  if (!rubric?.bands) {
+    console.error(`Rubric not found for ${perfKey}`)
+    return { band: null, points: 0 }
+  }
 
   // Convert bands to points based on the rubric
   const pointsMap: Record<BandKey, number> = {
-    HIGH: rubric.bands.HIGH.points,
-    EXCEEDS: rubric.bands.EXCEEDS.points,
-    MEETS: rubric.bands.MEETS.points,
-    PARTIAL: rubric.bands.PARTIAL.points,
-    NEEDS: rubric.bands.NEEDS.points,
+    HIGH: rubric.bands.HIGH?.points || 0,
+    EXCEEDS: rubric.bands.EXCEEDS?.points || 0,
+    MEETS: rubric.bands.MEETS?.points || 0,
+    PARTIAL: rubric.bands.PARTIAL?.points || 0,
+    NEEDS: rubric.bands.NEEDS?.points || 0,
   }
 
   const totalPoints = evaluations.reduce((sum, band) => sum + (pointsMap[band] || 0), 0)
@@ -1440,7 +1456,7 @@ function getTableMaxPoints(tableKey: string): number {
     return 20 // fallback
   }
 
-  return cfg.perf[perfKey].weight
+  return cfg.perf[perfKey]?.weight || 20
 }
 
 // Apply calculated average to performance evaluation
@@ -1456,12 +1472,12 @@ function applyTableAverage(tableKey: string) {
     }
 
     const perfKey = perfKeyMap[tableKey]
-    if (perfKey && cfg.perf[perfKey]) {
+    if (perfKey && cfg.perf[perfKey]?.bands?.[average.band]) {
       pickPerf(perfKey, average.band)
       setViewModal({ open: false, table: '', title: '' })
     } else {
-      console.error(`Invalid table key: ${tableKey}`)
-      alert(`Error: Invalid table key ${tableKey}`)
+      console.error(`Invalid table key or band: ${tableKey}:${average.band}`)
+      alert(`Error: Invalid configuration for ${tableKey}`)
     }
   }
 }
@@ -1547,7 +1563,8 @@ function applyTableAverage(tableKey: string) {
     const w = cfg.perf[k].weight
     const state = perf[k]
     const selectedBand = state.band
-    const score = state.points ?? 0
+    const bandConfig = selectedBand && cfg.perf[k]?.bands?.[selectedBand]
+    const score = bandConfig ? bandConfig.points : 0
 
     // Map performance keys to achievements table names
     const achievementsTableMap: Record<PerfKey, { table: string, title: string }> = {
@@ -1589,7 +1606,7 @@ function applyTableAverage(tableKey: string) {
                         </TabsList>
                         {BAND_ORDER.map(b => (
                           <TabsContent key={b} value={b} className="mt-4 space-y-3">
-                            <Badge className="capitalize">{BAND_LABEL[b]} — {cfg.perf[k].bands[b].points} pts</Badge>
+                            <Badge className="capitalize">{BAND_LABEL[b]} — {cfg.perf[k]?.bands?.[b]?.points || 0} pts</Badge>
                             <div className="prose text-sm whitespace-pre-wrap">
                               {formatNumbered(cfg.perf[k].bands[b].summary)}
                             </div>
@@ -1654,7 +1671,7 @@ function applyTableAverage(tableKey: string) {
             />
           </div>
           <div className="mt-3 text-sm text-muted-foreground">
-            Section item score: <span className="font-semibold">{score.toFixed(0)} / {w}</span>
+            Section item score: <span className="font-semibold">{Math.min(score, w).toFixed(0)} / {w}</span>
           </div>
         </CardContent>
       </Card>
@@ -1665,7 +1682,7 @@ function applyTableAverage(tableKey: string) {
     const { k, title } = props
     const state = caps[k]
     const selectedBand = state?.band
-    const score = state?.points ?? 0
+    const score = selectedBand && cfg.cap.points?.[selectedBand] ? cfg.cap.points[selectedBand] : 0
 
     // Check if overall achievements data is available (capabilities can be evaluated when any achievements exist)
     const hasAnyAchievements = achievementsData ?

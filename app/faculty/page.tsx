@@ -4,17 +4,138 @@ import { getCurrentUser } from "@/lib/auth-utils"
 import { ClipboardList, Award, TrendingUp, Calendar } from "lucide-react"
 
 async function getFacultyStats(userId: string) {
-  const [currentAppraisal] = await Promise.all([
-    prisma.appraisal.findFirst({
-      where: {
+  // Get the current active appraisal cycle
+  const currentCycle = await prisma.appraisalCycle.findFirst({
+    where: { isActive: true },
+  })
+
+  if (!currentCycle) {
+    return {
+      currentAppraisal: null,
+      totalAchievements: 0,
+      recentAchievements: [],
+    }
+  }
+
+  // Find or create current appraisal for this user
+  let currentAppraisal = await prisma.appraisal.findFirst({
+    where: {
+      facultyId: parseInt(userId),
+      cycleId: currentCycle.id,
+    },
+  })
+
+  if (!currentAppraisal) {
+    currentAppraisal = await prisma.appraisal.create({
+      data: {
         facultyId: parseInt(userId),
+        cycleId: currentCycle.id,
+        status: "new",
       },
+    })
+  }
+
+  // Fetch all achievements for the current appraisal
+  const [
+    awards,
+    courses,
+    researchActivities,
+    scientificActivities,
+    universityServices,
+    communityServices,
+  ] = await Promise.all([
+    prisma.award.findMany({
+      where: { appraisalId: currentAppraisal.id },
+      orderBy: { dateObtained: "desc" },
+      take: 5,
+    }),
+    prisma.courseTaught.findMany({
+      where: { appraisalId: currentAppraisal.id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+    prisma.researchActivity.findMany({
+      where: { appraisalId: currentAppraisal.id },
+      orderBy: { publicationDate: "desc" },
+      take: 5,
+    }),
+    prisma.scientificActivity.findMany({
+      where: { appraisalId: currentAppraisal.id },
+      orderBy: { date: "desc" },
+      take: 5,
+    }),
+    prisma.universityService.findMany({
+      where: { appraisalId: currentAppraisal.id },
+      orderBy: { dateFrom: "desc" },
+      take: 5,
+    }),
+    prisma.communityService.findMany({
+      where: { appraisalId: currentAppraisal.id },
+      orderBy: { dateFrom: "desc" },
+      take: 5,
     }),
   ])
 
-  // TODO: Implement achievement counting when model is available
-  const totalAchievements = 0
-  const recentAchievements: any[] = []
+  // Calculate total achievements
+  const totalAchievements =
+    awards.length +
+    courses.length +
+    researchActivities.length +
+    scientificActivities.length +
+    universityServices.length +
+    communityServices.length
+
+  // Combine and sort recent achievements
+  const allAchievements = [
+    ...awards.map((a) => ({
+      id: a.id,
+      title: a.name,
+      category: "Award",
+      dateAchieved: a.dateObtained,
+      points: 0, // Will be calculated based on grading config
+    })),
+    ...courses.map((c) => ({
+      id: c.id,
+      title: c.courseTitle,
+      category: "Course",
+      dateAchieved: new Date(c.createdAt),
+      points: 0,
+    })),
+    ...researchActivities.map((r) => ({
+      id: r.id,
+      title: r.title,
+      category: "Research",
+      dateAchieved: r.publicationDate,
+      points: 0,
+    })),
+    ...scientificActivities.map((s) => ({
+      id: s.id,
+      title: s.title,
+      category: "Scientific Activity",
+      dateAchieved: s.date,
+      points: 0,
+    })),
+    ...universityServices.map((u) => ({
+      id: u.id,
+      title: u.committeeOrTask,
+      category: "University Service",
+      dateAchieved: u.dateFrom,
+      points: 0,
+    })),
+    ...communityServices.map((c) => ({
+      id: c.id,
+      title: c.committeeOrTask,
+      category: "Community Service",
+      dateAchieved: c.dateFrom,
+      points: 0,
+    })),
+  ]
+
+  // Sort by date and take the 5 most recent
+  const recentAchievements = allAchievements
+    .filter((achievement) => achievement.dateAchieved)
+    .sort((a, b) => new Date(b.dateAchieved!).getTime() - new Date(a.dateAchieved!).getTime())
+    .slice(0, 5)
 
   return {
     currentAppraisal,

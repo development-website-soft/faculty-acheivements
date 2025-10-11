@@ -61,6 +61,7 @@ async function getCurrentAppraisalId(userId: number, req: NextRequest) {
     : await prisma.appraisalCycle.findFirst({ where: { isActive: true } })
   if (!cycle) return null
 
+  // HODs and Deans can also have their own appraisals for self-evaluation
   const appraisal = await prisma.appraisal.findFirst({
     where: { facultyId: userId, cycleId: cycle.id },
   })
