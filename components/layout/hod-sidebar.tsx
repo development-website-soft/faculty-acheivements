@@ -25,7 +25,7 @@ const myAppraisalItems = [
 ]
 
 export function HODSidebar() {
-  const [isCollapsed] = useState(false) // مطابق لتصميم DeanSidebar
+  const [isCollapsed] = useState(false) 
   const pathname = usePathname()
   const { data: session } = useSession()
 
