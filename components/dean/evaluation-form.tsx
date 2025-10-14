@@ -1112,16 +1112,37 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
 
   // Achievements viewing state
   const [achievementsData, setAchievementsData] = useState<any>(null)
+  const [achievementsLoading, setAchievementsLoading] = useState(false)
+  const [achievementsError, setAchievementsError] = useState<string | null>(null)
 
   // Load achievements and evaluation data on component mount
   useEffect(() => {
     const loadData = async () => {
       try {
+        setAchievementsLoading(true)
+        setAchievementsError(null)
+
         // Load achievements data
         const res = await fetch(`/api/appraisals/${appraisalId}`)
         if (res.ok) {
           const data = await res.json()
+          console.log('=== ACHIEVEMENTS DATA DEBUG ===')
+          console.log('Full API response:', data)
+          console.log('Available achievement tables:', Object.keys(data))
+
+          // Check each table for data
+          const tablesToCheck = ['researchActivities', 'scientificActivities', 'universityServices', 'communityServices', 'courses']
+          tablesToCheck.forEach(table => {
+            if (data[table]) {
+              console.log(`${table}:`, Array.isArray(data[table]) ? `${data[table].length} items` : 'Not an array', data[table])
+            } else {
+              console.log(`${table}: Not found in response`)
+            }
+          })
+
           setAchievementsData(data)
+        } else {
+          throw new Error(`Failed to load achievements: ${res.status}`)
         }
 
         // Load existing evaluation data
@@ -1187,11 +1208,13 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
 
       } catch (error) {
         console.error('Failed to load evaluation data:', error)
+        setAchievementsError(error instanceof Error ? error.message : 'Failed to load data')
+      } finally {
+        setAchievementsLoading(false)
       }
     }
     loadData()
   }, [appraisalId, cfg])
-  const [achievementsLoading, setAchievementsLoading] = useState(false)
   const [viewModal, setViewModal] = useState<{
     open: boolean
     table: string
@@ -1202,6 +1225,26 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
 
   // Individual achievement evaluations
   const [achievementEvaluations, setAchievementEvaluations] = useState<Record<number, BandKey>>({})
+
+  // Retry function for failed achievements loading
+  const retryLoadAchievements = async () => {
+    setAchievementsLoading(true)
+    setAchievementsError(null)
+    try {
+      const res = await fetch(`/api/appraisals/${appraisalId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAchievementsData(data)
+      } else {
+        throw new Error(`Failed to load achievements: ${res.status}`)
+      }
+    } catch (error) {
+      console.error('Failed to retry load achievements:', error)
+      setAchievementsError(error instanceof Error ? error.message : 'Failed to load achievements')
+    } finally {
+      setAchievementsLoading(false)
+    }
+  }
 
   const performanceTotal = useMemo(() =>
     (perf.research.points ?? 0) + (perf.university.points ?? 0) +
@@ -1488,7 +1531,18 @@ function applyTableAverage(tableKey: string) {
     const { value, onPick, disabled = false, tableKey } = props
 
     // Check if this evaluation category has achievements
-    const categoryHasAchievements = tableKey ? (() => {
+    const categoryHasAchievements = useMemo(() => {
+      if (!tableKey) return false
+
+      // If achievements are still loading, don't disable yet
+      if (achievementsLoading) return true
+
+      // If achievements failed to load, disable evaluation
+      if (achievementsError) return false
+
+      // If no achievements data, disable evaluation
+      if (!achievementsData) return false
+
       const perfKeyMap: Record<string, PerfKey> = {
         'research': 'research',
         'university': 'university',
@@ -1497,11 +1551,51 @@ function applyTableAverage(tableKey: string) {
       }
 
       const perfKey = perfKeyMap[tableKey]
-      if (!perfKey || !achievementsData) return false
+      if (!perfKey) return false
 
-      const tableName = perfKey === 'teaching' ? 'courses' : perfKey
-      return (achievementsData[tableName]?.length || 0) > 0
-    })() : false
+      // Map performance keys to actual table names based on API response structure
+      const getTableNames = (key: string): string[] => {
+        switch (key) {
+          case 'research':
+            return ['researchActivities', 'scientificActivities', 'research', 'ResearchActivity', 'ScientificActivity']
+          case 'university':
+            return ['universityServices', 'university', 'UniversityService', 'universityService']
+          case 'community':
+            return ['communityServices', 'community', 'CommunityService', 'communityService']
+          case 'teaching':
+            return ['courses', 'teaching', 'TeachingActivity']
+          default:
+            return [key]
+        }
+      }
+
+      const possibleTableNames = getTableNames(perfKey)
+
+      let tableData = null
+      for (const name of possibleTableNames) {
+        if (achievementsData[name] && Array.isArray(achievementsData[name])) {
+          tableData = achievementsData[name]
+          break
+        }
+      }
+
+      if (!tableData) {
+        // Debug: Log available table names if table not found
+        console.log('Available tables in achievementsData:', Object.keys(achievementsData))
+        console.log(`Looking for tables: ${possibleTableNames.join(', ')}`)
+        console.log('achievementsData structure:', achievementsData)
+
+        // Additional fallback: check if achievementsData itself is an array
+        if (Array.isArray(achievementsData) && achievementsData.length > 0) {
+          console.log('achievementsData is an array, using as fallback')
+          return true // If we have any achievements data as an array, enable evaluation
+        }
+
+        return false
+      }
+
+      return tableData.length > 0
+    }, [tableKey, achievementsData, achievementsLoading, achievementsError])
 
     const shouldDisableBands = disabled || !categoryHasAchievements
 
@@ -1539,7 +1633,11 @@ function applyTableAverage(tableKey: string) {
             className={`capitalize transition-colors ${getBandColors(b, value === b)}`}
             title={
               !categoryHasAchievements
-                ? 'No achievements available for evaluation'
+                ? achievementsLoading
+                  ? 'Loading achievements data...'
+                  : achievementsError
+                    ? 'Failed to load achievements data'
+                    : 'No achievements available for evaluation'
                 : `${BAND_LABEL[b]} - ${b === 'HIGH' ? 'أخضر غامق' :
                      b === 'EXCEEDS' ? 'أخضر فاتح' :
                      b === 'MEETS' ? 'أصفر ذهبي' :
@@ -1566,11 +1664,11 @@ function applyTableAverage(tableKey: string) {
     const bandConfig = selectedBand && cfg.perf[k]?.bands?.[selectedBand]
     const score = bandConfig ? bandConfig.points : 0
 
-    // Map performance keys to achievements table names
+    // Map performance keys to achievements table names (matching API response)
     const achievementsTableMap: Record<PerfKey, { table: string, title: string }> = {
-      research: { table: 'research', title: 'Research Activities' },
-      university: { table: 'university', title: 'University Service Achievements' },
-      community: { table: 'community', title: 'Community Service Achievements' },
+      research: { table: 'researchActivities', title: 'Research Activities' },
+      university: { table: 'universityServices', title: 'University Service Achievements' },
+      community: { table: 'communityServices', title: 'Community Service Achievements' },
       teaching: { table: 'courses', title: 'Courses Taught' },
     }
 
@@ -1624,7 +1722,10 @@ function applyTableAverage(tableKey: string) {
                     size="sm"
                     variant="outline"
                     disabled={!tableHasAchievements}
-                    onClick={() => openAchievementsView(achievementsInfo.table, achievementsInfo.title)}
+                    onClick={() => {
+                      console.log('Opening achievements view for table:', achievementsInfo.table)
+                      openAchievementsView(achievementsInfo.table, achievementsInfo.title)
+                    }}
                     title={
                       tableHasAchievements
                         ? `${achievementsCount} achievement${achievementsCount !== 1 ? 's' : ''} available`
@@ -1685,8 +1786,22 @@ function applyTableAverage(tableKey: string) {
     const score = selectedBand && cfg.cap.points?.[selectedBand] ? cfg.cap.points[selectedBand] : 0
 
     // Check if overall achievements data is available (capabilities can be evaluated when any achievements exist)
-    const hasAnyAchievements = achievementsData ?
-      Object.values(achievementsData).some((table: any) => table && table.length > 0) : false
+    const hasAnyAchievements = useMemo(() => {
+      // If achievements are still loading, don't disable yet
+      if (achievementsLoading) return true
+
+      // If achievements failed to load, disable evaluation
+      if (achievementsError) return false
+
+      // If no achievements data, disable evaluation
+      if (!achievementsData) return false
+
+      // Check if any table has data
+      return Object.values(achievementsData).some((table: any) => {
+        if (!Array.isArray(table)) return false
+        return table.length > 0
+      })
+    }, [achievementsData, achievementsLoading, achievementsError])
 
     return (
       <Card>
@@ -1702,6 +1817,7 @@ function applyTableAverage(tableKey: string) {
                 value={selectedBand}
                 onPick={(b)=>pickCap(k,b)}
                 disabled={!hasAnyAchievements}
+                tableKey="capabilities"
               />
             </div>
 
@@ -1755,28 +1871,28 @@ function applyTableAverage(tableKey: string) {
         { key: 'credit', label: 'Credit' },
         { key: 'studentsCount', label: 'Students Count' },
       ],
-      research: [
+      researchActivities: [
         { key: 'title', label: 'Title' },
         { key: 'type', label: 'Type' },
         { key: 'kind', label: 'Kind' },
         { key: 'journalOrPublisher', label: 'Journal/Publisher' },
         { key: 'publicationDate', label: 'Publication Date' },
       ],
-      scientific: [
+      scientificActivities: [
         { key: 'title', label: 'Title' },
         { key: 'type', label: 'Type' },
         { key: 'date', label: 'Date' },
         { key: 'participation', label: 'Participation' },
         { key: 'venue', label: 'Venue' },
       ],
-      university: [
+      universityServices: [
         { key: 'committeeOrTask', label: 'Committee/Task' },
         { key: 'authority', label: 'Authority' },
         { key: 'participation', label: 'Participation' },
         { key: 'dateFrom', label: 'Date From' },
         { key: 'dateTo', label: 'Date To' },
       ],
-      community: [
+      communityServices: [
         { key: 'committeeOrTask', label: 'Committee/Task' },
         { key: 'authority', label: 'Authority' },
         { key: 'participation', label: 'Participation' },
@@ -1931,6 +2047,38 @@ function applyTableAverage(tableKey: string) {
 
   return (
     <div className="space-y-6">
+      {/* Achievements Loading/Error State */}
+      {achievementsLoading && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-blue-700">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-700"></div>
+              <span className="text-sm">Loading achievements data...</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {achievementsError && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-red-700">
+                <span className="text-sm">Error loading achievements: {achievementsError}</span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={retryLoadAchievements}
+                className="text-red-700 border-red-300 hover:bg-red-100"
+              >
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* SECTION 1 */}
       <div className="space-y-3">
         <h2 className="text-xl font-semibold">{cfg.section1Title}</h2>
