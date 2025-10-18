@@ -1,20 +1,28 @@
-// lib/prisma.ts
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client"
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __prisma?: PrismaClient;
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
 }
 
-const dbUrlSet = Boolean(process.env.DATABASE_URL);
-console.log('RUNTIME: DATABASE_URL present?', dbUrlSet);
+const createPrismaClient = () => {
+  const databaseUrl = process.env.DATABASE_URL
 
-const prismaClient = global.__prisma ?? new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query','error','warn'] : ['error'],
-  // do NOT override datasources with an env var that might be undefined
-});
+  if (!databaseUrl) {
+    throw new Error(
+      "DATABASE_URL environment variable is required. Please check your .env file."
+    )
+  }
 
-if (process.env.NODE_ENV !== 'production') global.__prisma = prismaClient;
+  return new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+    datasources: {
+      db: {
+        url: databaseUrl,
+      },
+    },
+  })
+}
 
-export const prisma = prismaClient;
-export default prisma;
+export const prisma = globalForPrisma.prisma ?? createPrismaClient()
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
