@@ -1258,6 +1258,8 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
   const overallTotal = performanceTotal + capabilitiesTotal
 
   function pickPerf(key: PerfKey, band: BandKey) {
+    console.log(`pickPerf called with key: ${key}, band: ${band}`)
+
     const b = cfg.perf[key]?.bands?.[band]
     if (!b) {
       console.error(`Band configuration not found for ${key}:${band}`)
@@ -1265,6 +1267,8 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
     }
 
     const points = b.points
+    console.log(`Setting ${key} to band: ${band}, points: ${points}`)
+
     setPerf(prev => ({
       ...prev,
       [key]: {
@@ -1302,51 +1306,87 @@ const base = `/api/appraisals/${appraisalId}/evaluation`
 async function patchCriterion(k: PerfKey, v: PerfState[PerfKey]) {
   if (!v?.band) return
 
-  const payload = {
-    criterion: S1_API_KEY[k],     
-    band: v.band,                 
-    score: v.points,              
-    explanation: v.explanation,    
-    note: v.note ?? undefined,   
-    role,                         
+  // Map frontend band values to API expected values
+  const bandMapping: Record<string, string> = {
+    'HIGHLY_EXCEEDS': 'HIGH',
+    'EXCEEDS': 'EXCEEDS',
+    'MEETS': 'MEETS',
+    'PARTIAL': 'PARTIAL',
+    'NEEDS': 'NEEDS'
   }
+
+  const apiBand = bandMapping[v.band] || v.band
+
+  const payload = {
+    criterion: S1_API_KEY[k],
+    band: apiBand,
+    score: v.points,
+    explanation: v.explanation,
+    note: v.note ?? undefined,
+    role,
+  }
+
+  console.log(`Saving ${k} - Original band: ${v.band}, API band: ${apiBand}`)
+  console.log(`Payload:`, payload)
 
   const res = await fetch(`${base}/criterion`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
+
   if (!res.ok) {
     const txt = await res.text().catch(() => '')
+    console.error(`Failed to save ${k}:`, res.status, txt)
     throw new Error(`criterion ${k} failed (${res.status}) ${txt}`)
+  } else {
+    console.log(`Successfully saved ${k}`)
   }
 }
 
 async function patchCapabilities() {
-    const selections: Record<string, BandKey|undefined> =
-      Object.fromEntries(cfg.cap.keys.map(k => [k, caps[k]?.band]))
-    return fetch(`${base}/capabilities`, {
-      method:'PATCH',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ selections, role })
-    })
+  const selections: Record<string, BandKey|undefined> =
+    Object.fromEntries(cfg.cap.keys.map(k => [k, caps[k]?.band]))
+
+  console.log('Saving capabilities:', { selections, role })
+
+  const res = await fetch(`${base}/capabilities`, {
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ selections, role })
+  })
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '')
+    console.error('Failed to save capabilities:', res.status, txt)
+    throw new Error(`capabilities failed (${res.status}) ${txt}`)
+  } else {
+    console.log('Successfully saved capabilities')
   }
+}
 
 async function saveAll() {
   setSaving(true)
   try {
+    console.log('Starting save process...')
+
+    // Save Section 1 criteria
     await Promise.all(
       (Object.keys(perf) as PerfKey[]).map((k) => patchCriterion(k, perf[k]))
     )
+    console.log('Section 1 saved successfully')
 
+    // Save Section 2 capabilities
     await patchCapabilities()
+    console.log('Section 2 saved successfully')
 
     alert('Saved successfully.')
- //router.push(`/hod/reviews/${appraisalId}/self-development-plan`)
+    //router.push(`/hod/reviews/${appraisalId}/self-development-plan`)
 
   } catch (e) {
-    console.error(e)
-    alert('Save failed. Check console.')
+    console.error('Save error:', e)
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred'
+    alert(`Save failed: ${errorMessage}`)
   } finally {
     setSaving(false)
   }
@@ -1532,6 +1572,11 @@ function applyTableAverage(tableKey: string) {
 
     // Check if this evaluation category has achievements
     const categoryHasAchievements = useMemo(() => {
+      // For capabilities section, always enable the buttons
+      if (tableKey === 'capabilities') {
+        return true
+      }
+
       if (!tableKey) return false
 
       // If achievements are still loading, don't disable yet
@@ -1785,24 +1830,6 @@ function applyTableAverage(tableKey: string) {
     const selectedBand = state?.band
     const score = selectedBand && cfg.cap.points?.[selectedBand] ? cfg.cap.points[selectedBand] : 0
 
-    // Check if overall achievements data is available (capabilities can be evaluated when any achievements exist)
-    const hasAnyAchievements = useMemo(() => {
-      // If achievements are still loading, don't disable yet
-      if (achievementsLoading) return true
-
-      // If achievements failed to load, disable evaluation
-      if (achievementsError) return false
-
-      // If no achievements data, disable evaluation
-      if (!achievementsData) return false
-
-      // Check if any table has data
-      return Object.values(achievementsData).some((table: any) => {
-        if (!Array.isArray(table)) return false
-        return table.length > 0
-      })
-    }, [achievementsData, achievementsLoading, achievementsError])
-
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -1816,7 +1843,7 @@ function applyTableAverage(tableKey: string) {
               <BandRow
                 value={selectedBand}
                 onPick={(b)=>pickCap(k,b)}
-                disabled={!hasAnyAchievements}
+                disabled={false}
                 tableKey="capabilities"
               />
             </div>
