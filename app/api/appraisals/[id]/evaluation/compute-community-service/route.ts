@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireHOD, requireDean } from '@/lib/auth-utils'
 import { uiToRatingBand, UiBand } from '@/app/api/_utils/bands'
+import { recalcTotal } from '@/lib/recalc-total'
 
 type Role = 'HOD' | 'DEAN'
 const pickBand = (n: number): UiBand =>
@@ -37,16 +38,7 @@ export async function POST(
     create: { appraisalId, role, communityServiceBand: dbBand, communityServicePts: score, communityServiceExplanation: explanation },
   })
 
-  const totalS1 =
-    (ev.researchPts ?? 0) +
-    (ev.universityServicePts ?? 0) +
-    score +
-    (ev.teachingPts ?? 0)
-
-  await prisma.appraisal.update({
-    where: { id: appraisalId },
-    data: { totalScore: totalS1 || null, status: app.status === 'NEW' ? 'IN_REVIEW' : app.status },
-  })
+  await recalcTotal(appraisalId, role)
 
   return NextResponse.json({ band: uiBand, score, explanation })
 }

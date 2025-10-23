@@ -323,6 +323,9 @@ export default async function ResultsPage() {
 
   const appraisal = await prisma.appraisal.findFirst({
     where: { cycleId: cycle.id, facultyId: Number(user.id) },
+    include: {
+      evaluations: true,
+    },
   })
 
   if (!appraisal) {
@@ -336,13 +339,40 @@ export default async function ResultsPage() {
     )
   }
 
-  const rows = [
-    { section: 'Research',            score: appraisal.researchScore ?? '—' },
-    { section: 'University Service',  score: appraisal.universityServiceScore ?? '—' },
-    { section: 'Community Service',   score: appraisal.communityServiceScore ?? '—' },
-    { section: 'Teaching',            score: appraisal.teachingQualityScore ?? '—' },
-    { section: 'TOTAL',               score: appraisal.totalScore ?? '—' },
-  ]
+  // Capabilities points mapping
+  const CAP_POINTS: Record<string, number> = {
+    HIGH: 20,
+    EXCEEDS: 16,
+    MEETS: 12,
+    PARTIAL: 8,
+    NEEDS: 4,
+  }
+
+  // Get capabilities for the role
+  const getCapabilitiesForRole = (role: string) => {
+    if (role === 'DEAN') {
+      return [
+        'institutionalCommitment',
+        'customerService',
+        'leadingIndividuals',
+        'leadingChange',
+        'strategicVision',
+      ]
+    } else {
+      return [
+        'institutionalCommitment',
+        'collaborationTeamwork',
+        'professionalism',
+        'clientService',
+        'achievingResults',
+      ]
+    }
+  }
+
+  // Helper function to format numbers
+  const formatScore = (score: number | null | undefined) => {
+    return typeof score === 'number' ? score.toFixed(2) : '—'
+  }
 
   const isActionable = appraisal.status === 'sent'
 
@@ -355,25 +385,322 @@ export default async function ResultsPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border bg-white overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="p-2 text-left">Section</th>
-              <th className="p-2 text-left">Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.section} className="border-t">
-                <td className="p-2">{r.section}</td>
-                <td className="p-2">
-                  {typeof r.score === 'number' ? r.score.toFixed(2) : r.score}
-                </td>
+      {/* Performance Evaluations Table */}
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold">Performance Evaluations</h2>
+        <div className="rounded-2xl border bg-white overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="p-2 text-left">Evaluator</th>
+                <th className="p-2 text-left">Research</th>
+                <th className="p-2 text-left">University Service</th>
+                <th className="p-2 text-left">Community Service</th>
+                <th className="p-2 text-left">Teaching</th>
+                <th className="p-2 text-left">Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(() => {
+                const perfRows: any[] = []
+
+                // Add aggregated performance scores if available
+                if (appraisal.researchScore || appraisal.universityServiceScore || appraisal.communityServiceScore || appraisal.teachingQualityScore) {
+                  const perfTotal = (appraisal.researchScore ?? 0) + (appraisal.universityServiceScore ?? 0) + (appraisal.communityServiceScore ?? 0) + (appraisal.teachingQualityScore ?? 0)
+
+                  perfRows.push({
+                    evaluator: 'Aggregated Scores',
+                    research: appraisal.researchScore ?? '—',
+                    university: appraisal.universityServiceScore ?? '—',
+                    community: appraisal.communityServiceScore ?? '—',
+                    teaching: appraisal.teachingQualityScore ?? '—',
+                    total: perfTotal,
+                    isHeader: true,
+                  })
+
+                  perfRows.push({
+                    evaluator: 'Research',
+                    research: appraisal.researchScore ?? '—',
+                    university: '—',
+                    community: '—',
+                    teaching: '—',
+                    total: '—',
+                    isHeader: false,
+                  })
+                  perfRows.push({
+                    evaluator: 'University Service',
+                    research: '—',
+                    university: appraisal.universityServiceScore ?? '—',
+                    community: '—',
+                    teaching: '—',
+                    total: '—',
+                    isHeader: false,
+                  })
+                  perfRows.push({
+                    evaluator: 'Community Service',
+                    research: '—',
+                    university: '—',
+                    community: appraisal.communityServiceScore ?? '—',
+                    teaching: '—',
+                    total: '—',
+                    isHeader: false,
+                  })
+                  perfRows.push({
+                    evaluator: 'Teaching',
+                    research: '—',
+                    university: '—',
+                    community: '—',
+                    teaching: appraisal.teachingQualityScore ?? '—',
+                    total: '—',
+                    isHeader: false,
+                  })
+                  perfRows.push({
+                    evaluator: 'Performance Total',
+                    research: '—',
+                    university: '—',
+                    community: '—',
+                    teaching: '—',
+                    total: perfTotal,
+                    isHeader: false,
+                  })
+                }
+
+                // Add detailed performance scores from evaluations
+                if (appraisal.evaluations && appraisal.evaluations.length > 0) {
+                  appraisal.evaluations.forEach((evaluation, index) => {
+                    const perfTotal = (evaluation.researchPts ?? 0) +
+                                     (evaluation.universityServicePts ?? 0) +
+                                     (evaluation.communityServicePts ?? 0) +
+                                     (evaluation.teachingQualityPts ?? 0)
+
+                    perfRows.push({
+                      evaluator: `${evaluation.role} Evaluation`,
+                      research: evaluation.researchPts ?? '—',
+                      university: evaluation.universityServicePts ?? '—',
+                      community: evaluation.communityServicePts ?? '—',
+                      teaching: evaluation.teachingQualityPts ?? '—',
+                      total: perfTotal,
+                      isHeader: true,
+                    })
+
+                    perfRows.push({
+                      evaluator: 'Research',
+                      research: evaluation.researchPts ?? '—',
+                      university: '—',
+                      community: '—',
+                      teaching: '—',
+                      total: '—',
+                      isHeader: false,
+                    })
+                    perfRows.push({
+                      evaluator: 'University Service',
+                      research: '—',
+                      university: evaluation.universityServicePts ?? '—',
+                      community: '—',
+                      teaching: '—',
+                      total: '—',
+                      isHeader: false,
+                    })
+                    perfRows.push({
+                      evaluator: 'Community Service',
+                      research: '—',
+                      university: '—',
+                      community: evaluation.communityServicePts ?? '—',
+                      teaching: '—',
+                      total: '—',
+                      isHeader: false,
+                    })
+                    perfRows.push({
+                      evaluator: 'Teaching',
+                      research: '—',
+                      university: '—',
+                      community: '—',
+                      teaching: evaluation.teachingQualityPts ?? '—',
+                      total: '—',
+                      isHeader: false,
+                    })
+                    perfRows.push({
+                      evaluator: 'Performance Total',
+                      research: '—',
+                      university: '—',
+                      community: '—',
+                      teaching: '—',
+                      total: perfTotal,
+                      isHeader: false,
+                    })
+                  })
+                }
+
+                return perfRows.length > 0 ? (
+                  perfRows.map((r, index) => (
+                    <tr key={index} className={`border-t ${r.isHeader ? 'bg-gray-100 font-semibold' : ''}`}>
+                      <td className="p-2">{r.evaluator}</td>
+                      <td className="p-2">
+                        {typeof r.research === 'number' ? r.research.toFixed(2) : r.research}
+                      </td>
+                      <td className="p-2">
+                        {typeof r.university === 'number' ? r.university.toFixed(2) : r.university}
+                      </td>
+                      <td className="p-2">
+                        {typeof r.community === 'number' ? r.community.toFixed(2) : r.community}
+                      </td>
+                      <td className="p-2">
+                        {typeof r.teaching === 'number' ? r.teaching.toFixed(2) : r.teaching}
+                      </td>
+                      <td className="p-2">
+                        {typeof r.total === 'number' ? r.total.toFixed(2) : r.total}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="p-2 text-center text-gray-500">
+                      No performance evaluations available
+                    </td>
+                  </tr>
+                )
+              })()}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Capabilities Evaluations Table */}
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold">Capabilities Evaluations</h2>
+        <div className="rounded-2xl border bg-white overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="p-2 text-left">Evaluator</th>
+                <th className="p-2 text-left">Institutional Commitment</th>
+                <th className="p-2 text-left">Collaboration & Teamwork</th>
+                <th className="p-2 text-left">Professionalism</th>
+                <th className="p-2 text-left">Client Service</th>
+                <th className="p-2 text-left">Achieving Results</th>
+                <th className="p-2 text-left">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const capRows: any[] = []
+
+                if (appraisal.evaluations && appraisal.evaluations.length > 0) {
+                  appraisal.evaluations.forEach((evaluation, index) => {
+                    const capabilities = getCapabilitiesForRole(evaluation.role)
+                    const rubric = evaluation.rubric as any
+                    const capSelections = rubric?.capabilities?.selections || {}
+
+                    // Calculate capabilities scores
+                    let capTotal = 0
+                    if (Object.keys(capSelections).length > 0) {
+                      const capScores = capabilities.map(cap => {
+                        const band = capSelections[cap]
+                        return band ? CAP_POINTS[band] || 0 : 0
+                      })
+                      capTotal = capScores.reduce((sum, score) => sum + score, 0)
+                    } else {
+                      capTotal = evaluation.capabilitiesPts ?? 0
+                    }
+
+                    capRows.push({
+                      evaluator: `${evaluation.role} Evaluation`,
+                      institutionalCommitment: '—',
+                      collaborationTeamwork: '—',
+                      professionalism: '—',
+                      clientService: '—',
+                      achievingResults: '—',
+                      customerService: '—',
+                      leadingIndividuals: '—',
+                      leadingChange: '—',
+                      strategicVision: '—',
+                      total: capTotal,
+                      isHeader: true,
+                    })
+
+                    // Individual capabilities scores
+                    if (Object.keys(capSelections).length > 0) {
+                      capabilities.forEach((cap, capIndex) => {
+                        const band = capSelections[cap]
+                        const score = band ? CAP_POINTS[band] : '—'
+                        const row: any = {
+                          evaluator: cap.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+                          total: '—',
+                          isHeader: false,
+                        }
+                        row[cap] = score
+                        capRows.push(row)
+                      })
+                    } else {
+                      // If no detailed capabilities, show the total
+                      capRows.push({
+                        evaluator: 'Capabilities',
+                        institutionalCommitment: '—',
+                        collaborationTeamwork: '—',
+                        professionalism: '—',
+                        clientService: '—',
+                        achievingResults: '—',
+                        customerService: '—',
+                        leadingIndividuals: '—',
+                        leadingChange: '—',
+                        strategicVision: '—',
+                        total: evaluation.capabilitiesPts ?? '—',
+                        isHeader: false,
+                      })
+                    }
+
+                    capRows.push({
+                      evaluator: 'Capabilities Total',
+                      institutionalCommitment: '—',
+                      collaborationTeamwork: '—',
+                      professionalism: '—',
+                      clientService: '—',
+                      achievingResults: '—',
+                      customerService: '—',
+                      leadingIndividuals: '—',
+                      leadingChange: '—',
+                      strategicVision: '—',
+                      total: capTotal,
+                      isHeader: false,
+                    })
+                  })
+                }
+
+                return capRows.length > 0 ? (
+                  capRows.map((r, index) => (
+                    <tr key={index} className={`border-t ${r.isHeader ? 'bg-gray-100 font-semibold' : ''}`}>
+                      <td className="p-2">{r.evaluator}</td>
+                      <td className="p-2">
+                        {typeof r.institutionalCommitment === 'number' ? r.institutionalCommitment.toFixed(2) : r.institutionalCommitment}
+                      </td>
+                      <td className="p-2">
+                        {typeof r.collaborationTeamwork === 'number' ? r.collaborationTeamwork.toFixed(2) : r.collaborationTeamwork}
+                      </td>
+                      <td className="p-2">
+                        {typeof r.professionalism === 'number' ? r.professionalism.toFixed(2) : r.professionalism}
+                      </td>
+                      <td className="p-2">
+                        {typeof r.clientService === 'number' ? r.clientService.toFixed(2) : r.clientService}
+                      </td>
+                      <td className="p-2">
+                        {typeof r.achievingResults === 'number' ? r.achievingResults.toFixed(2) : r.achievingResults}
+                      </td>
+                      <td className="p-2">
+                        {typeof r.total === 'number' ? r.total.toFixed(2) : r.total}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="p-2 text-center text-gray-500">
+                      No capabilities evaluations available
+                    </td>
+                  </tr>
+                )
+              })()}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {isActionable ? (

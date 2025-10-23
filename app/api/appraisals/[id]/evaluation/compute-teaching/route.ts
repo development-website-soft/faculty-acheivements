@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireHOD, requireDean } from '@/lib/auth-utils'
+import { recalcTotal } from '@/lib/recalc-total'
+import { toRatingBand } from '@/lib/rating'
 
 type Band = 'HIGH'|'EXCEEDS'|'MEETS'|'PARTIAL'|'NEEDS'
 function toBand(pct: number): Band {
@@ -34,14 +36,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const ev = await prisma.evaluation.upsert({
     where: { appraisalId_role: { appraisalId, role } },
-    update: { teachingBand: band, teachingPts: score, teachingExplanation: explanation },
-    create: { appraisalId, role, teachingBand: band, teachingPts: score, teachingExplanation: explanation },
+    update: { teachingQualityBand: toRatingBand(band), teachingQualityPts: score, teachingQualityExplanation: explanation },
+    create: { appraisalId, role, teachingQualityBand: toRatingBand(band), teachingQualityPts: score, teachingQualityExplanation: explanation },
   })
-  const s1 = (ev.researchPts ?? 0) + (ev.universityServicePts ?? 0) + (ev.communityServicePts ?? 0) + score
-  await prisma.appraisal.update({
-    where: { id: appraisalId },
-    data: { totalScore: s1 || null, status: app.status === 'NEW' ? 'IN_REVIEW' : app.status },
-  })
+  await recalcTotal(appraisalId, role)
 
   return NextResponse.json({ band, score, explanation, avg })
 }

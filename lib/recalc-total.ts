@@ -32,7 +32,7 @@ export async function recalcTotal(appraisalId: number, role: 'HOD'|'DEAN') {
     where: { id: appraisalId },
     data: {
       totalScore: total,
-      status: app.status === 'NEW' ? 'IN_REVIEW' : app.status
+      status: app.status === 'new' ? 'sent' : app.status
     }
   })
 }

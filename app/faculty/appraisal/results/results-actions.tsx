@@ -7,10 +7,11 @@ export default function ResultsActions({ appraisalId }: { appraisalId: number })
 
   async function act(path: 'approve' | 'appeal') {
     setBusy(path)
+    const payload = { appraisalId, ...(path === 'appeal' ? { message } : {}) }
     const res = await fetch(`/api/appraisals/current/${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: path === 'appeal' ? JSON.stringify({ message }) : undefined,
+      body: JSON.stringify(payload),
     })
     setBusy(null)
     if (!res.ok) {

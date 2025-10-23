@@ -23,6 +23,11 @@ interface AppraisalData {
   submittedAt?: string
   createdAt: string
   updatedAt: string
+  appraisal: {
+    id: number
+    status: string
+    totalScore?: number
+  }
   faculty: {
     id: number
     name: string
@@ -103,20 +108,23 @@ export default function FacultyReportsPage() {
       const response = await fetch(`/api/faculty/reports?cycleId=${selectedCycle}&format=pdf`)
 
       if (response.ok) {
-        const reportData = await response.json()
+        // Get the PDF blob
+        const pdfBlob = await response.blob()
 
-        // In a real implementation, this would trigger PDF download
-        // For now, we'll simulate the download
+        // Create download link
+        const url = window.URL.createObjectURL(pdfBlob)
         const link = document.createElement('a')
-        link.href = reportData.downloadUrl || '#'
+        link.href = url
         link.download = `appraisal-report-${appraisalData.cycle.academicYear}.pdf`
-        if (link.download !== '#') {
-          link.click()
-        }
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
 
-        alert("Report generated successfully!")
+        alert("PDF report downloaded successfully!")
       } else {
-        throw new Error("Failed to generate report")
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to generate PDF report")
       }
     } catch (error) {
       console.error("Error generating report:", error)
