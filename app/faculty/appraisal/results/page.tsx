@@ -341,11 +341,12 @@ export default async function ResultsPage() {
 
   // Capabilities points mapping
   const CAP_POINTS: Record<string, number> = {
-    HIGH: 20,
+    HIGHLY_EXCEEDS: 20,
     EXCEEDS: 16,
-    MEETS: 12,
-    PARTIAL: 8,
-    NEEDS: 4,
+    FULLY_MEETS: 12,
+    PARTIALLY_MEETS: 8,
+    NEEDS_IMPROVEMENT: 4,
+
   }
 
   // Get capabilities for the role
@@ -565,143 +566,121 @@ export default async function ResultsPage() {
         </div>
       </div>
 
-      {/* Capabilities Evaluations Table */}
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold">Capabilities Evaluations</h2>
-        <div className="rounded-2xl border bg-white overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="p-2 text-left">Evaluator</th>
-                <th className="p-2 text-left">Institutional Commitment</th>
-                <th className="p-2 text-left">Collaboration & Teamwork</th>
-                <th className="p-2 text-left">Professionalism</th>
-                <th className="p-2 text-left">Client Service</th>
-                <th className="p-2 text-left">Achieving Results</th>
-                <th className="p-2 text-left">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                const capRows: any[] = []
+      {/* Capabilities Evaluations Tables */}
+      {(() => {
+        if (!appraisal.evaluations || appraisal.evaluations.length === 0) {
+          return (
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold">Capabilities Evaluations</h2>
+              <div className="rounded-2xl border bg-white p-4 text-center text-gray-500">
+                No capabilities evaluations available
+              </div>
+            </div>
+          )
+        }
 
-                if (appraisal.evaluations && appraisal.evaluations.length > 0) {
-                  appraisal.evaluations.forEach((evaluation, index) => {
-                    const capabilities = getCapabilitiesForRole(evaluation.role)
-                    const rubric = evaluation.rubric as any
-                    const capSelections = rubric?.capabilities?.selections || {}
+        const evaluationsByRole = appraisal.evaluations.reduce((acc, evaluation) => {
+          if (!acc[evaluation.role]) acc[evaluation.role] = []
+          acc[evaluation.role].push(evaluation)
+          return acc
+        }, {} as Record<string, typeof appraisal.evaluations>)
 
-                    // Calculate capabilities scores
-                    let capTotal = 0
-                    if (Object.keys(capSelections).length > 0) {
-                      const capScores = capabilities.map(cap => {
+        return Object.entries(evaluationsByRole).map(([role, evals]) => {
+          const typedEvals = evals as typeof appraisal.evaluations
+          const capabilities = getCapabilitiesForRole(role)
+          const headers = capabilities.map(cap => cap.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()))
+
+          return (
+            <div key={role} className="space-y-2">
+              <h2 className="text-lg font-semibold">{role} Capabilities Evaluations</h2>
+              <div className="rounded-2xl border bg-white overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="p-2 text-left">Evaluator</th>
+                      {headers.map(h => <th key={h} className="p-2 text-left">{h}</th>)}
+                      <th className="p-2 text-left">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {typedEvals.map((evaluation, index) => {
+                      const rubric = evaluation.rubric as any
+                      const capSelections = rubric?.capabilities?.selections || {}
+
+                      let capTotal = 0
+                      if (Object.keys(capSelections).length > 0) {
+                        const capScores = capabilities.map(cap => {
+                          const band = capSelections[cap]
+                          return band ? CAP_POINTS[band.toUpperCase()] || 0 : 0
+                        })
+                        capTotal = capScores.reduce((sum, score) => sum + score, 0)
+                      } else {
+                        capTotal = evaluation.capabilitiesPts ?? 0
+                      }
+
+                      const capBands: Record<string, string> = {}
+                      capabilities.forEach(cap => {
                         const band = capSelections[cap]
-                        return band ? CAP_POINTS[band] || 0 : 0
+                        capBands[cap] = band ? band.toUpperCase() : '—'
                       })
-                      capTotal = capScores.reduce((sum, score) => sum + score, 0)
-                    } else {
-                      capTotal = evaluation.capabilitiesPts ?? 0
-                    }
 
-                    capRows.push({
-                      evaluator: `${evaluation.role} Evaluation`,
-                      institutionalCommitment: '—',
-                      collaborationTeamwork: '—',
-                      professionalism: '—',
-                      clientService: '—',
-                      achievingResults: '—',
-                      customerService: '—',
-                      leadingIndividuals: '—',
-                      leadingChange: '—',
-                      strategicVision: '—',
-                      total: capTotal,
-                      isHeader: true,
-                    })
+                      const rows: any[] = []
+                      rows.push({
+                        evaluator: `${role} Evaluation`,
+                        ...capabilities.reduce((acc, cap) => ({ ...acc, [cap]: capBands[cap] || '—' }), {}),
+                        total: capTotal,
+                        isHeader: true,
+                      })
 
-                    // Individual capabilities scores
-                    if (Object.keys(capSelections).length > 0) {
-                      capabilities.forEach((cap, capIndex) => {
-                        const band = capSelections[cap]
-                        const score = band ? CAP_POINTS[band] : '—'
-                        const row: any = {
-                          evaluator: cap.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
-                          total: '—',
+                      if (Object.keys(capSelections).length > 0) {
+                        capabilities.forEach(cap => {
+                          const band = capSelections[cap]
+                          const score = band ? CAP_POINTS[band.toUpperCase()] : '—'
+                          const row: any = {
+                            evaluator: cap.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+                            ...capabilities.reduce((acc, c) => ({ ...acc, [c]: c === cap ? score : '—' }), {}),
+                            total: '—',
+                            isHeader: false,
+                          }
+                          rows.push(row)
+                        })
+                      } else {
+                        rows.push({
+                          evaluator: 'Capabilities',
+                          ...capabilities.reduce((acc, cap) => ({ ...acc, [cap]: '—' }), {}),
+                          total: evaluation.capabilitiesPts ?? '—',
                           isHeader: false,
-                        }
-                        row[cap] = score
-                        capRows.push(row)
-                      })
-                    } else {
-                      // If no detailed capabilities, show the total
-                      capRows.push({
-                        evaluator: 'Capabilities',
-                        institutionalCommitment: '—',
-                        collaborationTeamwork: '—',
-                        professionalism: '—',
-                        clientService: '—',
-                        achievingResults: '—',
-                        customerService: '—',
-                        leadingIndividuals: '—',
-                        leadingChange: '—',
-                        strategicVision: '—',
-                        total: evaluation.capabilitiesPts ?? '—',
+                        })
+                      }
+
+                      rows.push({
+                        evaluator: 'Capabilities Total',
+                        ...capabilities.reduce((acc, cap) => ({ ...acc, [cap]: '—' }), {}),
+                        total: capTotal,
                         isHeader: false,
                       })
-                    }
 
-                    capRows.push({
-                      evaluator: 'Capabilities Total',
-                      institutionalCommitment: '—',
-                      collaborationTeamwork: '—',
-                      professionalism: '—',
-                      clientService: '—',
-                      achievingResults: '—',
-                      customerService: '—',
-                      leadingIndividuals: '—',
-                      leadingChange: '—',
-                      strategicVision: '—',
-                      total: capTotal,
-                      isHeader: false,
-                    })
-                  })
-                }
-
-                return capRows.length > 0 ? (
-                  capRows.map((r, index) => (
-                    <tr key={index} className={`border-t ${r.isHeader ? 'bg-gray-100 font-semibold' : ''}`}>
-                      <td className="p-2">{r.evaluator}</td>
-                      <td className="p-2">
-                        {typeof r.institutionalCommitment === 'number' ? r.institutionalCommitment.toFixed(2) : r.institutionalCommitment}
-                      </td>
-                      <td className="p-2">
-                        {typeof r.collaborationTeamwork === 'number' ? r.collaborationTeamwork.toFixed(2) : r.collaborationTeamwork}
-                      </td>
-                      <td className="p-2">
-                        {typeof r.professionalism === 'number' ? r.professionalism.toFixed(2) : r.professionalism}
-                      </td>
-                      <td className="p-2">
-                        {typeof r.clientService === 'number' ? r.clientService.toFixed(2) : r.clientService}
-                      </td>
-                      <td className="p-2">
-                        {typeof r.achievingResults === 'number' ? r.achievingResults.toFixed(2) : r.achievingResults}
-                      </td>
-                      <td className="p-2">
-                        {typeof r.total === 'number' ? r.total.toFixed(2) : r.total}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="p-2 text-center text-gray-500">
-                      No capabilities evaluations available
-                    </td>
-                  </tr>
-                )
-              })()}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                      return rows.map((r, rIndex) => (
+                        <tr key={`${index}-${rIndex}`} className={`border-t ${r.isHeader ? 'bg-gray-100 font-semibold' : ''}`}>
+                          <td className="p-2">{r.evaluator}</td>
+                          {capabilities.map(cap => (
+                            <td key={cap} className="p-2">
+                              {typeof r[cap] === 'number' ? r[cap].toFixed(2) : r[cap]}
+                            </td>
+                          ))}
+                          <td className="p-2">
+                            {typeof r.total === 'number' ? r.total.toFixed(2) : r.total}
+                          </td>
+                        </tr>
+                      ))
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })
+      })()}
 
       {isActionable ? (
         <ResultsActions appraisalId={appraisal.id} />

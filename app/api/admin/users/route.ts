@@ -110,7 +110,6 @@ export async function POST(request: NextRequest) {
       if (departmentId !== null) {
         return badRequest("DEAN must not have a departmentId")
       }
-      // لو عندك شرط إلزام الكلية للعميد، فعّله:
       // if (collegeId === null) return badRequest("collegeId is required for DEAN")
     } else if (roleVal === UserRole.HOD || roleVal === UserRole.INSTRUCTOR) {
       // HOD/INSTRUCTOR: قسم إلزامي

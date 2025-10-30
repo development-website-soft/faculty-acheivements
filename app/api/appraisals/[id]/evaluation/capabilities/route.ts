@@ -22,12 +22,10 @@ const Body = z.object({
   note: z.string().optional().nullable(),
 })
 
-// نقاط كل Band لكل بُعد (20 كحد أقصى لكل بُعد)
 const CAP_POINTS: Record<UiBand, number> = {
   HIGH: 20, EXCEEDS: 16, MEETS: 12, PARTIAL: 8, NEEDS: 4
 }
 
-// من مجموع (0–100) إلى Band إجمالي
 function bandFromCapabilitiesTotal(total: number): UiBand {
   if (total >= 90) return 'HIGH'
   if (total >= 80) return 'EXCEEDS'
@@ -36,7 +34,6 @@ function bandFromCapabilitiesTotal(total: number): UiBand {
   return 'NEEDS'
 }
 
-// دمج JSON آمن لحقل rubric
 function mergeRubric(existing: any, patch: any) {
   const base = (existing && typeof existing === 'object') ? existing : {}
   return { ...base, ...patch }
@@ -62,7 +59,6 @@ async function handler(req: Request, ctx: { params: Promise<{ id: string }> }) {
 
   const { selections, note } = Body.parse(await req.json())
 
-  // حساب النقاط وبناء شرح مرقّم + تحويل إلى RatingBand لكل بُعد للتخزين داخل rubric
   let total = 0
   const perDimBands: Record<string, RatingBand> = {}
   const lines: string[] = []

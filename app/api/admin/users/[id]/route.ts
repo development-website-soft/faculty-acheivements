@@ -79,15 +79,23 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // ========== DELETE: حذف مستخدم ==========
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions)
     if (!session || session.user.role !== UserRole.ADMIN) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const id = Number(params.id)
-    await prisma.user.delete({ where: { id } })
+    const { id } = await params
+    const userId = Number(id)
+
+    // First, delete all related appraisals to avoid foreign key constraint
+    await prisma.appraisal.deleteMany({
+      where: { facultyId: userId }
+    })
+
+    // Then delete the user
+    await prisma.user.delete({ where: { id: userId } })
 
     return NextResponse.json({ success: true })
   } catch (error) {
