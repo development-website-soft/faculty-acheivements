@@ -18,6 +18,7 @@ function toDateOrNull(v: any) {
 function sanitizePayload(resource: ResKey, body: Record<string, any>) {
   const b = { ...body };
   delete (b as any).id;
+  delete (b as any).errors;
   delete (b as any).appraisalId;
   delete (b as any).createdAt;
   delete (b as any).updatedAt;

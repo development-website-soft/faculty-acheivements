@@ -16,7 +16,7 @@ const deanNavItems = [
   { href: "/dean/achievements", icon: Award, label: "Faculty Achievements" },
   { href: "/dean/analytics", icon: History, label: "Analytics" },
   { href: "/dean/reports", icon: FileText, label: "Reports" },
-  { href: "/dean/achievements", icon: Edit, label: "Update Achievements" },
+  { href: "/dean/appraisal/achievements", icon: Edit, label: "Update Achievements" },
   { href: "/dean/achievements/my", icon: User, label: "My Achievements" },
 ]
 

@@ -157,6 +157,7 @@ export async function POST(request: NextRequest) {
          message: "File uploaded successfully",
          filename,
          url: blobUrl,
+         fileKey: filename,
        })
      } catch (blobError) {
        console.error("Blob storage error:", blobError)
@@ -206,6 +207,7 @@ export async function POST(request: NextRequest) {
            message: "File uploaded successfully (fallback method)",
            filename,
            url: dataUrl,
+           fileKey: filename,
          })
        } catch (fallbackError) {
          console.error("Fallback storage also failed:", fallbackError)

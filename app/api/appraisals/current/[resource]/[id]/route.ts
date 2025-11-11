@@ -12,21 +12,18 @@ type ResourceKey =
   | 'community'
 
 const allowed: Record<ResourceKey, string[]> = {
-  awards: ['name', 'area', 'organization', 'dateObtained', 'fileUrl'],
-  courses: ['academicYear', 'semester', 'courseTitle', 'courseCode', 'credit', 'studentsCount', 'studentsEvalAvg'],
-  research: ['title', 'kind', 'journalOrPublisher', 'participation', 'publicationDate', 'refereedArticleRef', 'fileUrl'],
-  scientific: ['title', 'type', 'date', 'participation', 'organizingAuth', 'venue', 'fileUrl'],
-  university: ['committeeOrTask', 'authority', 'participation', 'dateFrom', 'dateTo', 'fileUrl'],
-  community: ['committeeOrTask', 'authority', 'participation', 'dateFrom', 'dateTo', 'fileUrl'],
+  awards: ['name', 'area', 'organization', 'dateObtained', 'attachment', 'fileUrl', 'fileKey'],
+  courses: ['academicYear', 'semester', 'courseTitle', 'courseCode','section', 'credit', 'studentsCount', 'studentsEvalAvg'],
+  research: ['title', 'kind', 'journalOrPublisher', 'participation', 'publicationDate', 'refereedArticleRef', 'attachment', 'fileUrl', 'fileKey'],
+  scientific: ['title', 'type', 'date', 'participation', 'organizingAuth', 'venue', 'attachment', 'fileUrl', 'fileKey'],
+  university: ['committeeOrTask', 'authority', 'participation', 'dateFrom', 'dateTo', 'attachment', 'fileUrl', 'fileKey'],
+  community: ['committeeOrTask', 'authority', 'participation', 'dateFrom', 'dateTo', 'attachment', 'fileUrl', 'fileKey'],
 }
 
-const dateKeys: Record<ResourceKey, string[]> = {
-  awards: ['dateObtained'],
-  courses: [],
-  research: ['publicationDate'],
-  scientific: ['date'],
-  university: ['dateFrom', 'dateTo'],
-  community: ['dateFrom', 'dateTo'],
+function toDateOrNull(v: any) {
+  if (!v) return null;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 function pick(obj: any, keys: string[]) {
@@ -35,8 +32,85 @@ function pick(obj: any, keys: string[]) {
   return out
 }
 
-function normalizeDates(obj: any, keys: string[]) {
-  for (const k of keys) if (obj[k]) obj[k] = new Date(obj[k])
+// Override pick to allow empty strings for attachment fields (for file removal)
+function pickWithFileSupport(obj: any, keys: string[]) {
+  const out: any = {}
+  const attachmentFields = ['attachment', 'fileUrl', 'fileKey']
+  
+  for (const k of keys) {
+    // Always include attachment fields if they exist, even if empty (for file removal)
+    if (attachmentFields.includes(k) && obj.hasOwnProperty(k)) {
+      out[k] = obj[k]
+    } else if (obj[k] !== undefined) {
+      out[k] = obj[k]
+    }
+  }
+  return out
+}
+
+function sanitizePayload(resource: ResourceKey, body: Record<string, any>) {
+  const b = { ...body };
+  delete (b as any).id;
+  delete (b as any).appraisalId;
+  delete (b as any).createdAt;
+  delete (b as any).updatedAt;
+
+  const dateKeys = [
+    "date", "dateFrom", "dateTo", "dateObtained", "publicationDate"
+  ];
+  for (const k of dateKeys) {
+    if (b[k]) {
+      const d = toDateOrNull(b[k]);
+      if (d) b[k] = d;
+    }
+  }
+
+  // Normalize semester enum values
+  if (b.semester) {
+    const semesterMap: Record<string, string> = {
+      "first": "FALL",
+      "second": "SPRING",
+      "summer": "SUMMER"
+    };
+    if (semesterMap[b.semester.toLowerCase()]) {
+      b.semester = semesterMap[b.semester.toLowerCase()];
+    }
+  }
+
+  // Normalize ResearchActivityType enum values
+  if (b.type) {
+    const researchTypeMap: Record<string, string> = {
+      "journal": "JOURNAL",
+      "conference": "CONFERENCE",
+      "other": "OTHER"
+    };
+    const normalizedType = researchTypeMap[b.type.toLowerCase()];
+    if (normalizedType) {
+      b.type = normalizedType;
+    }
+  }
+
+  // Normalize ResearchKind enum values
+  if (b.kind) {
+    const researchKindMap: Record<string, string> = {
+      "accepted": "ACCEPTED",
+      "published": "PUBLISHED",
+      "in_process": "IN_PROCESS",
+      "arbitration": "ARBITRATION",
+      "thesis_supervision": "THESIS_SUPERVISION",
+      "funded_project": "FUNDED_PROJECT",
+      "contractual_research": "CONTRACTUAL_RESEARCH",
+      "registered_patent": "REGISTERED_PATENT",
+      "refereed_paper": "REFEREED_PAPER",
+      "other": "OTHER"
+    };
+    const normalizedKind = researchKindMap[b.kind.toLowerCase()];
+    if (normalizedKind) {
+      b.kind = normalizedKind;
+    }
+  }
+
+  return b;
 }
 
 function resourceToModel(resource: ResourceKey) {
@@ -123,32 +197,87 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ re
     }
 
     const body = await req.json().catch(() => ({}))
-    const payload = pick(body, allowed[resourceKey])
-    normalizeDates(payload, dateKeys[resourceKey])
+    const rawData = pickWithFileSupport(body, allowed[resourceKey])
+    const data = sanitizePayload(resourceKey, rawData)
 
-    // normalization for courses
+    // Special handling for courses to convert numeric fields
     if (resourceKey === 'courses') {
-      if (payload.credit != null) payload.credit = Number(payload.credit)
-      if (payload.studentsCount != null) payload.studentsCount = Number(payload.studentsCount)
-      if (payload.studentsEvalAvg != null) payload.studentsEvalAvg = Number(payload.studentsEvalAvg)
-      // Normalize semester enum values
-      if (payload.semester) {
-        const semesterMap: Record<string, string> = {
-          "first": "FALL",
-          "second": "SPRING",
-          "summer": "SUMMER"
-        };
-        if (semesterMap[payload.semester.toLowerCase()]) {
-          payload.semester = semesterMap[payload.semester.toLowerCase()];
+      if (data.credit != null) data.credit = Number(data.credit)
+      if (data.studentsCount != null) data.studentsCount = Number(data.studentsCount)
+      if (data.studentsEvalAvg != null) data.studentsEvalAvg = Number(data.studentsEvalAvg)
+    }
+
+    // Handle file updates - check if a new file was uploaded or file was removed
+    const hasNewFile = data.fileUrl && data.fileUrl !== item.fileUrl
+    const hasRemovedFile = data.fileUrl === '' && item.fileUrl !== null && item.fileUrl !== undefined
+    
+    const updated = await (model as any).update({ where: { id: itemId }, data })
+    
+    // Link new files if uploaded (similar to POST route logic)
+    if (hasNewFile && (resourceKey === "awards" || resourceKey === "research" || resourceKey === "scientific" || resourceKey === "university" || resourceKey === "community")) {
+      try {
+        // Find the most recent unlinked evidence file for this achievement type and appraisal
+        const relatedFile = await prisma.evidence.findFirst({
+          where: {
+            appraisalId: appraisalId,
+            achievementType: resourceKey,
+            linkedAchievementId: null,
+          },
+          orderBy: {
+            createdAt: 'desc' // Get the most recent file
+          }
+        })
+
+        if (relatedFile) {
+          // Link the file to this achievement
+          await prisma.evidence.update({
+            where: { id: relatedFile.id },
+            data: { linkedAchievementId: updated.id },
+          })
+
+          // Update the achievement record with all three file fields from the Evidence record
+          await (model as any).update({
+            where: { id: updated.id },
+            data: {
+              attachment: relatedFile.url,
+              fileUrl: relatedFile.url,
+              fileKey: relatedFile.fileKey,
+            },
+          })
         }
+      } catch (error) {
+        console.error("Error linking files to achievement during update:", error)
+        // Don't fail the request if file linking fails
       }
     }
 
-    if (resourceKey === 'research' && payload['kind']) {
-      payload['kind'] = String(payload['kind']).toUpperCase()
+    // Handle file removal - unlink files if file was removed
+    if (hasRemovedFile && (resourceKey === "awards" || resourceKey === "research" || resourceKey === "scientific" || resourceKey === "university" || resourceKey === "community")) {
+      try {
+        // Find linked evidence files for this achievement
+        const linkedFiles = await prisma.evidence.findMany({
+          where: {
+            linkedAchievementId: updated.id,
+            achievementType: resourceKey,
+          },
+        })
+
+        // Unlink each file from this achievement
+        for (const file of linkedFiles) {
+          await prisma.evidence.update({
+            where: { id: file.id },
+            data: {
+              linkedAchievementId: null,
+              appraisalId: appraisalId, // Keep file in the appraisal but unlinked
+            },
+          })
+        }
+      } catch (error) {
+        console.error("Error unlinking files during update:", error)
+        // Don't fail the request if file unlinking fails
+      }
     }
 
-    const updated = await (model as any).update({ where: { id: itemId }, data: payload })
     return NextResponse.json(updated)
   } catch (e) {
     console.error(e)

@@ -91,22 +91,22 @@ function getStatusColor(status: string) {
    }
  }
 
-function isWithinOneMonthOfYearEnd(): boolean {
-   const now = new Date()
-   const currentYear = now.getFullYear()
-   const yearEnd = new Date(currentYear, 11, 31) // December 31st of current year
-   const oneMonthBeforeYearEnd = new Date(currentYear, 11, 1) // December 1st of current year
+// function isWithinOneMonthOfYearEnd(): boolean {
+//    const now = new Date()
+//    const currentYear = now.getFullYear()
+//    const yearEnd = new Date(currentYear, 11, 31) // December 31st of current year
+//    const oneMonthBeforeYearEnd = new Date(currentYear, 11, 1) // December 1st of current year
 
-   return now >= oneMonthBeforeYearEnd && now <= yearEnd
- }
+//    return now >= oneMonthBeforeYearEnd && now <= yearEnd
+//  }
 
-function shouldEnableEvaluationButton(status: string): boolean {
-   // Button should be disabled for "new" or "complete" status
-   // Only enable for "new" status AND within one month of year end
-   if (status === "complete") return false
-   if (status === "new") return isWithinOneMonthOfYearEnd()
-   return true // Disable for all other statuses
- }
+// function shouldEnableEvaluationButton(status: string): boolean {
+//    // Button should be disabled for "new" or "complete" status
+//    // Only enable for "new" status AND within one month of year end
+//    if (status === "complete") return false
+//    if (status === "new") return isWithinOneMonthOfYearEnd()
+//    return true // Disable for all other statuses
+//  }
 
 /* ================== Page ================== */
 export default function DeanAchievements() {
@@ -289,20 +289,10 @@ export default function DeanAchievements() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={!shouldEnableEvaluationButton(item.status)}
-                          title={
-                            shouldEnableEvaluationButton(item.status)
-                              ? "Open appraisal for evaluation"
-                              : item.status === "new" && !isWithinOneMonthOfYearEnd()
-                              ? "Evaluation can only be done one month before year end"
-                              : item.status === "complete"
-                              ? "Evaluation is complete and cannot be modified"
-                              : "Evaluation is not available for this status"
-                          }
+
                           onClick={() => {
-                            if (shouldEnableEvaluationButton(item.status)) {
-                              window.open(`/dean/reviews/${item.appraisalId}`, '_blank')
-                            }
+                              window.open(`/dean/view/${item.appraisalId}`, '_blank')
+                            
                           }}
                         >
                           <ExternalLink className="h-4 w-4" />

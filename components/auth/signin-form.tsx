@@ -11,12 +11,14 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2 } from "lucide-react"
+import { ForgotPasswordModal } from "@/components/auth/forgot-password-modal"
 
 export function SignInForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,7 +47,8 @@ export function SignInForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <div>
+      <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -85,7 +88,11 @@ export function SignInForm() {
       </div>
 
       <div className="text-center">
-        <button type="button" className="text-gray-500 text-sm hover:text-gray-700 transition-colors">
+        <button 
+          type="button" 
+          className="text-gray-500 text-sm hover:text-gray-700 transition-colors"
+          onClick={() => setShowForgotPassword(true)}
+        >
           FORGOT PASSWORD? RESET PASSWORD
         </button>
       </div>
@@ -105,5 +112,11 @@ export function SignInForm() {
         )}
       </Button>
     </form>
+
+    <ForgotPasswordModal 
+      isOpen={showForgotPassword} 
+      onClose={() => setShowForgotPassword(false)} 
+    />
+  </div>
   )
 }

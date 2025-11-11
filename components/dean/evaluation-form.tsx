@@ -779,6 +779,57 @@ type CapState = Record<string, {
   explanation?: string
 }>
 
+// ---------- Band Mapping Utilities ----------
+// Convert from UI band to Database band
+const uiToDbBand = (uiBand: BandKey): string => {
+  const mapping: Record<BandKey, string> = {
+    'HIGH': 'HIGHLY_EXCEEDS',
+    'EXCEEDS': 'EXCEEDS',
+    'MEETS': 'FULLY_MEETS', 
+    'PARTIAL': 'PARTIALLY_MEETS',
+    'NEEDS': 'NEEDS_IMPROVEMENT'
+  }
+  return mapping[uiBand]
+}
+
+// Convert from Database band to UI band  
+// Convert from Database band to UI band - COMPLETE FIX
+const dbToUiBand = (dbBand: string | null): BandKey | undefined => {
+  if (!dbBand) {
+    console.log('dbToUiBand: No band provided')
+    return undefined
+  }
+  
+  console.log('dbToUiBand: Converting', dbBand)
+  
+  // Handle ALL possible band formats
+  const mapping: Record<string, BandKey> = {
+    // Database enum values (from Prisma)
+    'HIGHLY_EXCEEDS': 'HIGH',
+    'EXCEEDS': 'EXCEEDS', 
+    'FULLY_MEETS': 'MEETS',
+    'PARTIALLY_MEETS': 'PARTIAL',
+    'NEEDS_IMPROVEMENT': 'NEEDS',
+    
+    // UI values that might come from API
+    'HIGH': 'HIGH',
+    //'EXCEEDS': 'EXCEEDS',
+    'MEETS': 'MEETS',        
+    'PARTIAL': 'PARTIAL',    
+    'NEEDS': 'NEEDS',        
+  }
+  
+  const result = mapping[dbBand]
+  console.log('dbToUiBand: Mapping', dbBand, '→', result)
+  
+  if (!result) {
+    console.warn('dbToUiBand: Unknown band format:', dbBand)
+    return 'NEEDS' // fallback
+  }
+  
+  return result
+}
+
 // ---------- Shared helpers ----------
 const CAP_PFX = {
   HIGH: 'Work characterized by a very high degree of professionalism (90%–100%):',
@@ -1119,6 +1170,10 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
   useEffect(() => {
     const loadData = async () => {
       try {
+        console.log('=== LOADING EVALUATION DATA ===')
+        console.log('Role:', role)
+        console.log('Appraisal ID:', appraisalId)
+
         setAchievementsLoading(true)
         setAchievementsError(null)
 
@@ -1147,55 +1202,73 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
 
         // Load existing evaluation data
         const evalRes = await fetch(`/api/appraisals/${appraisalId}/evaluation/criterion`)
-        if (evalRes.ok) {
-          const evaluations = await evalRes.json()
+// في جزء تحميل evaluations:
+if (evalRes.ok) {
+  const evaluations = await evalRes.json()
+  console.log('=== LOADED EVALUATIONS ===')
+  console.log('Raw API response:', evaluations)
 
-          // Initialize performance state with saved data
-          const newPerf: PerfState = {
-            research: {},
-            university: {},
-            community: {},
-            teaching: {},
-          }
+  const newPerf: PerfState = {
+    research: {},
+    university: {},
+    community: {},
+    teaching: {},
+  }
 
-          evaluations.forEach((evaluation: any) => {
-            const criterionMap: Record<string, PerfKey> = {
-              'research': 'research',
-              'universityService': 'university',
-              'communityService': 'community',
-              'teaching': 'teaching',
-            }
+  evaluations.forEach((evaluation: any) => {
+    const criterionMap: Record<string, PerfKey> = {
+      'research': 'research',
+      'universityService': 'university', 
+      'communityService': 'community',
+      'teaching': 'teaching',
+    }
 
-            const perfKey = criterionMap[evaluation.criterion]
-            if (perfKey && cfg.perf[perfKey]) {
-              newPerf[perfKey] = {
-                band: evaluation.band,
-                points: evaluation.score,
-                explanation: evaluation.explanation,
-                note: evaluation.note || '',
-              }
-            }
-          })
+    const perfKey = criterionMap[evaluation.criterion]
+    if (perfKey && cfg.perf[perfKey]) {
+      const uiBand = dbToUiBand(evaluation.band)
+      
+      console.log(`Processing ${perfKey}:`, {
+        dbBand: evaluation.band,
+        uiBand: uiBand,
+        score: evaluation.score,
+        hasBand: !!evaluation.band,
+        hasScore: !!evaluation.score
+      })
+      
+      newPerf[perfKey] = {
+        band: uiBand,
+        points: evaluation.score,
+        explanation: evaluation.explanation,
+        note: evaluation.note || '',
+      }
+    }
+  })
 
-          setPerf(newPerf)
+  console.log('Final performance state:', newPerf)
+  setPerf(newPerf)
+} else {
+          console.error('Failed to load evaluations:', evalRes.status)
         }
 
         // Load capabilities data
         const capRes = await fetch(`/api/appraisals/${appraisalId}/evaluation/capabilities`)
         if (capRes.ok) {
           const capData = await capRes.json()
+          console.log('Loaded capabilities:', capData)
 
           if (capData.selections) {
             const newCaps: CapState = {}
             cfg.cap.keys.forEach((k) => {
-              const band = capData.selections[k] as BandKey
-              if (band) {
-                const pts = cfg.cap.points[band]
-                const exp = cfg.cap.explanations[k][band]
+              const dbBand = capData.selections[k] as string
+              const uiBand = dbToUiBand(dbBand)
+              
+              if (uiBand) {
+                const pts = cfg.cap.points[uiBand]
+                const exp = cfg.cap.explanations[k][uiBand]
                 newCaps[k] = {
-                  band,
+                  band: uiBand,
                   points: pts,
-                  explanation: [`${BAND_LABEL[band]} (${pts} pts)`, exp].join('\n'),
+                  explanation: [`${BAND_LABEL[uiBand]} (${pts} pts)`, exp].join('\n'),
                   note: capData.notes?.[k] || '',
                 }
               } else {
@@ -1204,6 +1277,8 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
             })
             setCaps(newCaps)
           }
+        } else {
+          console.error('Failed to load capabilities:', capRes.status)
         }
 
       } catch (error) {
@@ -1214,7 +1289,8 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
       }
     }
     loadData()
-  }, [appraisalId, cfg])
+  }, [appraisalId, cfg, role])
+
   const [viewModal, setViewModal] = useState<{
     open: boolean
     table: string
@@ -1263,7 +1339,7 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
     const b = cfg.perf[key]?.bands?.[band]
     if (!b) {
       console.error(`Band configuration not found for ${key}:${band}`)
-      return // Exit if band configuration not found
+      return
     }
 
     const points = b.points
@@ -1286,7 +1362,7 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
 
     if (exp === undefined || pts === undefined) {
       console.error(`Capability configuration not found for ${key}:${band}`)
-      return // Exit if configuration not found
+      return
     }
 
     setCaps(prev => ({
@@ -1301,270 +1377,268 @@ export default function EvaluationForm({ appraisalId, role }: Props) {
   }
 
   // APIs
-const base = `/api/appraisals/${appraisalId}/evaluation`
+  const base = `/api/appraisals/${appraisalId}/evaluation`
 
 async function patchCriterion(k: PerfKey, v: PerfState[PerfKey]) {
   if (!v?.band) return
 
-  // Map frontend band values to API expected values
-  const bandMapping: Record<string, string> = {
-    'HIGHLY_EXCEEDS': 'HIGH',
-    'EXCEEDS': 'EXCEEDS',
-    'MEETS': 'MEETS',
-    'PARTIAL': 'PARTIAL',
-    'NEEDS': 'NEEDS'
-  }
-
-  const apiBand = bandMapping[v.band] || v.band
+  // استخدام دالة التحويل الجديدة
+  const dbBand = uiToDbBand(v.band)
 
   const payload = {
     criterion: S1_API_KEY[k],
-    band: apiBand,
+    band: dbBand,
     score: v.points,
     explanation: v.explanation,
     note: v.note ?? undefined,
     role,
   }
 
-  console.log(`Saving ${k} - Original band: ${v.band}, API band: ${apiBand}`)
-  console.log(`Payload:`, payload)
+  console.log(`Saving ${k} - UI band: ${v.band}, DB band: ${dbBand}`)
+  console.log(`Full payload:`, JSON.stringify(payload, null, 2))
 
-  const res = await fetch(`${base}/criterion`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '')
-    console.error(`Failed to save ${k}:`, res.status, txt)
-    throw new Error(`criterion ${k} failed (${res.status}) ${txt}`)
-  } else {
-    console.log(`Successfully saved ${k}`)
-  }
-}
-
-async function patchCapabilities() {
-  const selections: Record<string, BandKey|undefined> =
-    Object.fromEntries(cfg.cap.keys.map(k => [k, caps[k]?.band]))
-
-  console.log('Saving capabilities:', { selections, role })
-
-  const res = await fetch(`${base}/capabilities`, {
-    method:'PATCH',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ selections, role })
-  })
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '')
-    console.error('Failed to save capabilities:', res.status, txt)
-    throw new Error(`capabilities failed (${res.status}) ${txt}`)
-  } else {
-    console.log('Successfully saved capabilities')
-  }
-}
-
-async function saveAll() {
-  setSaving(true)
   try {
-    console.log('Starting save process...')
+    const res = await fetch(`${base}/criterion`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
 
-    // Save Section 1 criteria
-    await Promise.all(
-      (Object.keys(perf) as PerfKey[]).map((k) => patchCriterion(k, perf[k]))
-    )
-    console.log('Section 1 saved successfully')
-
-    // Save Section 2 capabilities
-    await patchCapabilities()
-    console.log('Section 2 saved successfully')
-
-    alert('Saved successfully.')
-    //router.push(`/hod/reviews/${appraisalId}/self-development-plan`)
-
-  } catch (e) {
-    console.error('Save error:', e)
-    const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred'
-    alert(`Save failed: ${errorMessage}`)
-  } finally {
-    setSaving(false)
-  }
-}
-
-// Fetch achievements data for a specific table (already loaded on mount)
-async function fetchAchievements(table: string) {
-  setAchievementsLoading(true)
-  try {
-    // Data is already loaded on mount, just return it
-    if (achievementsData) {
-      return achievementsData
+    if (!res.ok) {
+      const errorText = await res.text()
+      console.error(`API Error ${res.status}:`, errorText)
+      throw new Error(`criterion ${k} failed (${res.status}) ${errorText}`)
     }
 
-    // Fallback fetch if not loaded yet
-    const res = await fetch(`/api/appraisals/${appraisalId}`)
-    if (!res.ok) throw new Error('Failed to fetch achievements')
-    const data = await res.json()
-    setAchievementsData(data)
-    return data
-  } catch (e) {
-    console.error(e)
-    alert('Failed to load achievements')
-    return null
-  } finally {
-    setAchievementsLoading(false)
+    const result = await res.json()
+    console.log(`Successfully saved ${k}:`, result)
+    
+  } catch (error) {
+    console.error(`Network error saving ${k}:`, error)
+    throw error
   }
 }
 
-// Open achievements view modal
-function openAchievementsView(table: string, title: string) {
-  fetchAchievements(table).then((data) => {
-    if (data) {
-      setViewModal({
-        open: true,
-        table,
-        title,
-        data: data[table] || []
-      })
-      // Clear previous evaluations when opening modal
-      setAchievementEvaluations({})
-      setSelectedAchievements(new Set())
-    }
-  })
-}
+  async function patchCapabilities() {
+    const selections: Record<string, BandKey|undefined> =
+      Object.fromEntries(cfg.cap.keys.map(k => [k, caps[k]?.band]))
 
-// Toggle achievement selection
-function toggleAchievementSelection(id: number) {
-  setSelectedAchievements(prev => {
-    const newSet = new Set(prev)
-    if (newSet.has(id)) {
-      newSet.delete(id)
+    console.log('Saving capabilities:', { selections, role })
+
+    const res = await fetch(`${base}/capabilities`, {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ selections, role })
+    })
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('Failed to save capabilities:', res.status, txt)
+      throw new Error(`capabilities failed (${res.status}) ${txt}`)
     } else {
-      newSet.add(id)
+      console.log('Successfully saved capabilities')
     }
-    return newSet
-  })
-}
-
-// Format achievement data for display
-function formatAchievementValue(value: any, field: string): string {
-  if (!value) return '—'
-
-  if (field === 'dateObtained' || field === 'publicationDate' || field === 'date') {
-    return new Date(value).toLocaleDateString()
   }
 
-  if (field === 'attachment' && value) {
-    return '📎 Available'
+  async function saveAll() {
+    setSaving(true)
+    try {
+      console.log('Starting save process...')
+
+      // Save Section 1 criteria
+      await Promise.all(
+        (Object.keys(perf) as PerfKey[]).map((k) => patchCriterion(k, perf[k]))
+      )
+      console.log('Section 1 saved successfully')
+
+      // Save Section 2 capabilities
+      await patchCapabilities()
+      console.log('Section 2 saved successfully')
+
+      alert('Saved successfully.')
+      //router.push(`/hod/reviews/${appraisalId}/self-development-plan`)
+
+    } catch (e) {
+      console.error('Save error:', e)
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred'
+      alert(`Save failed: ${errorMessage}`)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  return String(value)
-}
+  // Fetch achievements data for a specific table (already loaded on mount)
+  async function fetchAchievements(table: string) {
+    setAchievementsLoading(true)
+    try {
+      // Data is already loaded on mount, just return it
+      if (achievementsData) {
+        return achievementsData
+      }
 
-// Evaluate individual achievement
-function evaluateAchievement(achievementId: number, band: BandKey) {
-  setAchievementEvaluations(prev => ({
-    ...prev,
-    [achievementId]: band
-  }))
-}
-
-// Calculate average evaluation for a table
-function calculateTableAverage(tableKey: string): { band: BandKey | null, points: number } {
-  const tableData = viewModal.data || []
-  const evaluations = tableData
-    .filter(item => selectedAchievements.has(item.id))
-    .map(item => achievementEvaluations[item.id])
-    .filter(Boolean)
-
-  if (evaluations.length === 0) {
-    return { band: null, points: 0 }
+      // Fallback fetch if not loaded yet
+      const res = await fetch(`/api/appraisals/${appraisalId}`)
+      if (!res.ok) throw new Error('Failed to fetch achievements')
+      const data = await res.json()
+      setAchievementsData(data)
+      return data
+    } catch (e) {
+      console.error(e)
+      alert('Failed to load achievements')
+      return null
+    } finally {
+      setAchievementsLoading(false)
+    }
   }
 
-  // Map table keys to PerfKey values for accessing rubrics
-  const perfKeyMap: Record<string, PerfKey> = {
-    'research': 'research',
-    'university': 'university',
-    'community': 'community',
-    'courses': 'teaching',
+  // Open achievements view modal
+  function openAchievementsView(table: string, title: string) {
+    fetchAchievements(table).then((data) => {
+      if (data) {
+        setViewModal({
+          open: true,
+          table,
+          title,
+          data: data[table] || []
+        })
+        // Clear previous evaluations when opening modal
+        setAchievementEvaluations({})
+        setSelectedAchievements(new Set())
+      }
+    })
   }
 
-  const perfKey = perfKeyMap[tableKey]
-  if (!perfKey || !cfg.perf[perfKey]) {
-    console.error(`Invalid table key for calculation: ${tableKey}`)
-    return { band: null, points: 0 }
+  // Toggle achievement selection
+  function toggleAchievementSelection(id: number) {
+    setSelectedAchievements(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
   }
 
-  // Get the rubric for this performance category
-  const rubric = cfg.perf[perfKey]
-  if (!rubric?.bands) {
-    console.error(`Rubric not found for ${perfKey}`)
-    return { band: null, points: 0 }
+  // Format achievement data for display
+  function formatAchievementValue(value: any, field: string): string {
+    if (!value) return '—'
+
+    if (field === 'dateObtained' || field === 'publicationDate' || field === 'date') {
+      return new Date(value).toLocaleDateString()
+    }
+
+    if (field === 'attachment' && value) {
+      return '📎 Available'
+    }
+
+    return String(value)
   }
 
-  // Convert bands to points based on the rubric
-  const pointsMap: Record<BandKey, number> = {
-    HIGH: rubric.bands.HIGH?.points || 0,
-    EXCEEDS: rubric.bands.EXCEEDS?.points || 0,
-    MEETS: rubric.bands.MEETS?.points || 0,
-    PARTIAL: rubric.bands.PARTIAL?.points || 0,
-    NEEDS: rubric.bands.NEEDS?.points || 0,
+  // Evaluate individual achievement
+  function evaluateAchievement(achievementId: number, band: BandKey) {
+    setAchievementEvaluations(prev => ({
+      ...prev,
+      [achievementId]: band
+    }))
   }
 
-  const totalPoints = evaluations.reduce((sum, band) => sum + (pointsMap[band] || 0), 0)
-  const averagePoints = Math.floor(totalPoints / evaluations.length)
+  // Calculate average evaluation for a table
+  function calculateTableAverage(tableKey: string): { band: BandKey | null, points: number } {
+    const tableData = viewModal.data || []
+    const evaluations = tableData
+      .filter(item => selectedAchievements.has(item.id))
+      .map(item => achievementEvaluations[item.id])
+      .filter(Boolean)
 
-  // Convert average points back to band
-  let averageBand: BandKey = 'NEEDS'
-  if (averagePoints >= pointsMap.HIGH * 0.9) averageBand = 'HIGH'
-  else if (averagePoints >= pointsMap.EXCEEDS * 0.9) averageBand = 'EXCEEDS'
-  else if (averagePoints >= pointsMap.MEETS * 0.9) averageBand = 'MEETS'
-  else if (averagePoints >= pointsMap.PARTIAL * 0.9) averageBand = 'PARTIAL'
+    if (evaluations.length === 0) {
+      return { band: null, points: 0 }
+    }
 
-  return { band: averageBand, points: averagePoints }
-}
-
-// Get maximum points for a table based on role and table type
-function getTableMaxPoints(tableKey: string): number {
-  const perfKeyMap: Record<string, PerfKey> = {
-    'research': 'research',
-    'university': 'university',
-    'community': 'community',
-    'courses': 'teaching',
-  }
-
-  const perfKey = perfKeyMap[tableKey]
-  if (!perfKey || !cfg.perf[perfKey]) {
-    console.error(`Invalid table key for points: ${tableKey}`)
-    return 20 // fallback
-  }
-
-  return cfg.perf[perfKey]?.weight || 20
-}
-
-// Apply calculated average to performance evaluation
-function applyTableAverage(tableKey: string) {
-  const average = calculateTableAverage(tableKey)
-  if (average.band) {
-    // Map table keys back to PerfKey values
+    // Map table keys to PerfKey values for accessing rubrics
     const perfKeyMap: Record<string, PerfKey> = {
       'research': 'research',
       'university': 'university',
       'community': 'community',
-      'courses': 'teaching', // courses table maps to teaching evaluation
+      'courses': 'teaching',
     }
 
     const perfKey = perfKeyMap[tableKey]
-    if (perfKey && cfg.perf[perfKey]?.bands?.[average.band]) {
-      pickPerf(perfKey, average.band)
-      setViewModal({ open: false, table: '', title: '' })
-    } else {
-      console.error(`Invalid table key or band: ${tableKey}:${average.band}`)
-      alert(`Error: Invalid configuration for ${tableKey}`)
+    if (!perfKey || !cfg.perf[perfKey]) {
+      console.error(`Invalid table key for calculation: ${tableKey}`)
+      return { band: null, points: 0 }
+    }
+
+    // Get the rubric for this performance category
+    const rubric = cfg.perf[perfKey]
+    if (!rubric?.bands) {
+      console.error(`Rubric not found for ${perfKey}`)
+      return { band: null, points: 0 }
+    }
+
+    // Convert bands to points based on the rubric
+    const pointsMap: Record<BandKey, number> = {
+      HIGH: rubric.bands.HIGH?.points || 0,
+      EXCEEDS: rubric.bands.EXCEEDS?.points || 0,
+      MEETS: rubric.bands.MEETS?.points || 0,
+      PARTIAL: rubric.bands.PARTIAL?.points || 0,
+      NEEDS: rubric.bands.NEEDS?.points || 0,
+    }
+
+    const totalPoints = evaluations.reduce((sum, band) => sum + (pointsMap[band] || 0), 0)
+    const averagePoints = Math.floor(totalPoints / evaluations.length)
+
+    // Convert average points back to band
+    let averageBand: BandKey = 'NEEDS'
+    if (averagePoints >= pointsMap.HIGH * 0.9) averageBand = 'HIGH'
+    else if (averagePoints >= pointsMap.EXCEEDS * 0.9) averageBand = 'EXCEEDS'
+    else if (averagePoints >= pointsMap.MEETS * 0.9) averageBand = 'MEETS'
+    else if (averagePoints >= pointsMap.PARTIAL * 0.9) averageBand = 'PARTIAL'
+
+    return { band: averageBand, points: averagePoints }
+  }
+
+  // Get maximum points for a table based on role and table type
+  function getTableMaxPoints(tableKey: string): number {
+    const perfKeyMap: Record<string, PerfKey> = {
+      'research': 'research',
+      'university': 'university',
+      'community': 'community',
+      'courses': 'teaching',
+    }
+
+    const perfKey = perfKeyMap[tableKey]
+    if (!perfKey || !cfg.perf[perfKey]) {
+      console.error(`Invalid table key for points: ${tableKey}`)
+      return 20 // fallback
+    }
+
+    return cfg.perf[perfKey]?.weight || 20
+  }
+
+  // Apply calculated average to performance evaluation
+  function applyTableAverage(tableKey: string) {
+    const average = calculateTableAverage(tableKey)
+    if (average.band) {
+      // Map table keys back to PerfKey values
+      const perfKeyMap: Record<string, PerfKey> = {
+        'research': 'research',
+        'university': 'university',
+        'community': 'community',
+        'courses': 'teaching', // courses table maps to teaching evaluation
+      }
+
+      const perfKey = perfKeyMap[tableKey]
+      if (perfKey && cfg.perf[perfKey]?.bands?.[average.band]) {
+        pickPerf(perfKey, average.band)
+        setViewModal({ open: false, table: '', title: '' })
+      } else {
+        console.error(`Invalid table key or band: ${tableKey}:${average.band}`)
+        alert(`Error: Invalid configuration for ${tableKey}`)
+      }
     }
   }
-}
-
 
   // UI blocks
   function BandRow(props: { value?: BandKey; onPick: (b:BandKey)=>void; disabled?: boolean; tableKey?: string }) {
@@ -2171,4 +2245,5 @@ function applyTableAverage(tableKey: string) {
     </div>
   )
 }
+
 

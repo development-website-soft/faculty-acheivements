@@ -37,8 +37,11 @@ const data = apps.map(a => {
       university = latestEval.universityServicePts ?? 0
       community = latestEval.communityServicePts ?? 0
       teaching = latestEval.teachingQualityPts ?? 0
-      total = latestEval.totalScore ?? 0
+      total = latestEval.totalScore ?? (research + university + community + teaching)
     }
+  } else {
+    // If no evaluations, calculate total from individual appraisal scores
+    total = research + university + community + teaching
   }
 
   return {

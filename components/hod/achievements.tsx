@@ -101,11 +101,8 @@ function isWithinOneMonthOfYearEnd(): boolean {
  }
 
 function shouldEnableEvaluationButton(status: string): boolean {
-   // Button should be disabled for "new" or "complete" status
-   // Only enable for "new" status AND within one month of year end
-   if (status === "complete") return false
-   if (status === "new") return isWithinOneMonthOfYearEnd()
-   return true // Disable for all other statuses
+   // Button is always enabled for all statuses and all cycles
+   return true
  }
 
 /* ================== Page ================== */
@@ -289,20 +286,9 @@ export default function HODAchievements() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={!shouldEnableEvaluationButton(item.status)}
-                          title={
-                            shouldEnableEvaluationButton(item.status)
-                              ? "Open appraisal for evaluation"
-                              : item.status === "new" && !isWithinOneMonthOfYearEnd()
-                              ? "Evaluation can only be done one month before year end"
-                              : item.status === "complete"
-                              ? "Evaluation is complete and cannot be modified"
-                              : "Evaluation is not available for this status"
-                          }
+                          title="Open appraisal for evaluation"
                           onClick={() => {
-                            if (shouldEnableEvaluationButton(item.status)) {
-                              window.open(`/hod/reviews/${item.appraisalId}`, '_blank')
-                            }
+                            window.open(`/hod/view/${item.appraisalId}`, '_blank')
                           }}
                         >
                           <ExternalLink className="h-4 w-4" />

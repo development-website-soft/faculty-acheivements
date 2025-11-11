@@ -124,11 +124,8 @@ export default function CollegeAchievements() {
                                                             <Button
                                                                 variant="outline"
                                                                 size="sm"
-                                                                disabled={!shouldEnableEvaluationButton(item.status)}
                                                                 onClick={() => {
-                                                                    if (shouldEnableEvaluationButton(item.status)) {
-                                                                        window.open(`/dean/reviews/${item.appraisalId}`, '_blank')
-                                                                    }
+                                                                    window.open(`/dean/view/${item.appraisalId}`, '_blank')
                                                                 }}
                                                             >
                                                                 <ExternalLink className="h-4 w-4" />

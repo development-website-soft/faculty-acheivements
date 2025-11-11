@@ -19,7 +19,7 @@ const hodNavItems = [
 ]
 
 const myAppraisalItems = [
-  { href: "/hod/appraisal/achievements", icon: Award, label: "My Achievements" },
+  { href: "/hod/appraisal/achievements", icon: Award, label: "Update Achievements" },
   { href: "/hod/appraisal/results", icon: User, label: "View Results" },
   { href: "/hod/analytics/personal", icon: BarChart3, label: "Performance Analytics" },
 ]

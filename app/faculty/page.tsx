@@ -201,7 +201,7 @@ export default async function FacultyDashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         <Card className="bg-card">
           <CardHeader>
             <CardTitle className="text-card-foreground">Recent Achievements</CardTitle>
@@ -226,35 +226,6 @@ export default async function FacultyDashboard() {
               ) : (
                 <p className="text-sm text-muted-foreground">No achievements recorded yet</p>
               )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card">
-          <CardHeader>
-            <CardTitle className="text-card-foreground">Quick Actions</CardTitle>
-            <CardDescription>Common tasks</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
-              <Card className="p-4 hover:bg-muted cursor-pointer transition-colors">
-                <div className="flex items-center gap-3">
-                  <ClipboardList className="h-5 w-5 text-accent" />
-                  <div>
-                    <p className="font-medium text-sm">Update Appraisal</p>
-                    <p className="text-xs text-muted-foreground">Add achievements and self-evaluation</p>
-                  </div>
-                </div>
-              </Card>
-              <Card className="p-4 hover:bg-muted cursor-pointer transition-colors">
-                <div className="flex items-center gap-3">
-                  <Award className="h-5 w-5 text-accent" />
-                  <div>
-                    <p className="font-medium text-sm">Add Achievement</p>
-                    <p className="text-xs text-muted-foreground">Record new accomplishment</p>
-                  </div>
-                </div>
-              </Card>
             </div>
           </CardContent>
         </Card>

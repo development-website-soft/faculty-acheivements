@@ -12,22 +12,27 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const reportType = searchParams.get("type") // appraisals, achievements, performance
-    const format = searchParams.get("format") || "json" // json, csv, pdf
+    const reportType = searchParams.get("type") // appraisals, achievements, performance, faculty
+    const format = searchParams.get("format") || "csv" // json, csv
     const academicYear = searchParams.get("academicYear")
     const userId = searchParams.get("userId")
+    const department = searchParams.get("department")
+    const collegeId = searchParams.get("collegeId")
 
     let data: any = {}
 
     switch (reportType) {
       case "appraisals":
-        data = await generateAppraisalsReport(session, academicYear, userId)
+        data = await generateAppraisalsReport(session, academicYear, userId, department, collegeId)
         break
       case "achievements":
-        data = await generateAchievementsReport(session, academicYear, userId)
+        data = await generateAchievementsReport(session, academicYear, userId, department, collegeId)
         break
       case "performance":
-        data = await generatePerformanceReport(session, academicYear, userId)
+        data = await generatePerformanceReport(session, academicYear, userId, department, collegeId)
+        break
+      case "faculty":
+        data = await generateFacultyReport(session, academicYear, department, collegeId)
         break
       default:
         return NextResponse.json({ error: "Invalid report type" }, { status: 400 })
@@ -50,7 +55,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function generateAppraisalsReport(session: any, academicYear?: string | null, userId?: string | null) {
+async function generateAppraisalsReport(session: any, academicYear?: string | null, userId?: string | null, department?: string | null, collegeId?: string | null) {
   const whereClause: any = {}
 
   // Role-based filtering using proper relationships
@@ -58,15 +63,31 @@ async function generateAppraisalsReport(session: any, academicYear?: string | nu
     whereClause.facultyId = parseInt(session.user.id)
   } else if (session.user.role === UserRole.HOD) {
     // HOD can see appraisals from their department
-    whereClause.faculty = {
-      departmentId: parseInt(session.user.departmentId || '0')
+    const hod = await prisma.user.findUnique({
+      where: { id: parseInt(session.user.id) },
+      include: { department: true }
+    })
+    if (hod?.department) {
+      whereClause.faculty = {
+        departmentId: hod.department.id
+      }
     }
   } else if (session.user.role === UserRole.DEAN) {
     // DEAN can see appraisals from their college
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(session.user.id) },
+      include: { department: { select: { collegeId: true } } }
+    })
+    const targetCollegeId = collegeId ? parseInt(collegeId) : (user?.department?.collegeId || 0)
     whereClause.faculty = {
       department: {
-        collegeId: parseInt(session.user.collegeId || '0')
+        collegeId: targetCollegeId
       }
+    }
+    
+    // Filter by specific department if provided
+    if (department && department !== 'all') {
+      whereClause.faculty.department.name = department
     }
   }
 
@@ -122,7 +143,7 @@ async function generateAppraisalsReport(session: any, academicYear?: string | nu
   }
 }
 
-async function generateAchievementsReport(session: any, academicYear?: string | null, userId?: string | null) {
+async function generateAchievementsReport(session: any, academicYear?: string | null, userId?: string | null, department?: string | null, collegeId?: string | null) {
   // Build the base where clause for appraisals first
   const appraisalWhereClause: any = {}
 
@@ -131,15 +152,31 @@ async function generateAchievementsReport(session: any, academicYear?: string | 
     appraisalWhereClause.facultyId = parseInt(session.user.id)
   } else if (session.user.role === UserRole.HOD) {
     // HOD can see achievements from their department
-    appraisalWhereClause.faculty = {
-      departmentId: parseInt(session.user.departmentId || '0')
+    const hod = await prisma.user.findUnique({
+      where: { id: parseInt(session.user.id) },
+      include: { department: true }
+    })
+    if (hod?.department) {
+      appraisalWhereClause.faculty = {
+        departmentId: hod.department.id
+      }
     }
   } else if (session.user.role === UserRole.DEAN) {
     // DEAN can see achievements from their college
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(session.user.id) },
+      include: { department: { select: { collegeId: true } } }
+    })
+    const targetCollegeId = collegeId ? parseInt(collegeId) : (user?.department?.collegeId || 0)
     appraisalWhereClause.faculty = {
       department: {
-        collegeId: parseInt(session.user.collegeId || '0')
+        collegeId: targetCollegeId
       }
+    }
+    
+    // Filter by specific department if provided
+    if (department && department !== 'all') {
+      appraisalWhereClause.faculty.department.name = department
     }
   }
 
@@ -319,7 +356,7 @@ async function generateAchievementsReport(session: any, academicYear?: string | 
   }
 }
 
-async function generatePerformanceReport(session: any, academicYear?: string | null, userId?: string | null) {
+async function generatePerformanceReport(session: any, academicYear?: string | null, userId?: string | null, department?: string | null, collegeId?: string | null) {
   // Build the base where clause for appraisals first
   const appraisalWhereClause: any = {}
 
@@ -328,15 +365,31 @@ async function generatePerformanceReport(session: any, academicYear?: string | n
     appraisalWhereClause.facultyId = parseInt(session.user.id)
   } else if (session.user.role === UserRole.HOD) {
     // HOD can see appraisals from their department
-    appraisalWhereClause.faculty = {
-      departmentId: parseInt(session.user.departmentId || '0')
+    const hod = await prisma.user.findUnique({
+      where: { id: parseInt(session.user.id) },
+      include: { department: true }
+    })
+    if (hod?.department) {
+      appraisalWhereClause.faculty = {
+        departmentId: hod.department.id
+      }
     }
   } else if (session.user.role === UserRole.DEAN) {
     // DEAN can see appraisals from their college
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(session.user.id) },
+      include: { department: { select: { collegeId: true } } }
+    })
+    const targetCollegeId = collegeId ? parseInt(collegeId) : (user?.department?.collegeId || 0)
     appraisalWhereClause.faculty = {
       department: {
-        collegeId: parseInt(session.user.collegeId || '0')
+        collegeId: targetCollegeId
       }
+    }
+    
+    // Filter by specific department if provided
+    if (department && department !== 'all') {
+      appraisalWhereClause.faculty.department.name = department
     }
   }
 
@@ -476,6 +529,125 @@ async function generatePerformanceReport(session: any, academicYear?: string | n
     generatedAt: new Date().toISOString(),
     totalRecords: performanceData.length,
     data: performanceData,
+  }
+}
+
+async function generateFacultyReport(session: any, academicYear?: string | null, department?: string | null, collegeId?: string | null) {
+  // For deans, try to get collegeId from parameter first, then session
+  let targetCollegeId: number | null = null
+  if (session.user.role === UserRole.DEAN) {
+    targetCollegeId = collegeId ? parseInt(collegeId) : null
+    if (!targetCollegeId) {
+      // If no collegeId provided, try to get from user's department
+      const user = await prisma.user.findUnique({
+        where: { id: parseInt(session.user.id) },
+        include: { department: { select: { collegeId: true } } }
+      })
+      targetCollegeId = user?.department?.collegeId || null
+    }
+  }
+
+  let whereClause: any = {}
+
+  // Role-based filtering
+  if (session.user.role === UserRole.INSTRUCTOR) {
+    whereClause.id = parseInt(session.user.id)
+  } else if (session.user.role === UserRole.HOD) {
+    // For HOD, get their department
+    const hod = await prisma.user.findUnique({
+      where: { id: parseInt(session.user.id) },
+      include: { department: true }
+    })
+    if (hod?.department) {
+      whereClause.departmentId = hod.department.id
+    }
+  } else if (session.user.role === UserRole.DEAN) {
+    if (targetCollegeId) {
+      whereClause = {
+        department: {
+          collegeId: targetCollegeId
+        }
+      }
+    }
+  }
+
+  // Filter by specific department if provided
+  if (department && department !== 'all') {
+    if (session.user.role === UserRole.INSTRUCTOR) {
+      return {
+        title: "Faculty Overview Report",
+        generatedAt: new Date().toISOString(),
+        totalRecords: 0,
+        data: [],
+        error: "Instructors cannot filter by department"
+      }
+    }
+    if (whereClause.department) {
+      whereClause.department = { ...whereClause.department, name: department }
+    } else {
+      whereClause.department = { name: department }
+    }
+  }
+
+  const faculty = await prisma.user.findMany({
+    where: {
+      ...whereClause,
+      role: { in: [UserRole.INSTRUCTOR, UserRole.HOD] }
+    },
+    include: {
+      department: {
+        include: { college: { select: { name: true } } }
+      },
+      appraisals: {
+        where: academicYear ? { cycle: { academicYear } } : {},
+        include: {
+          cycle: true,
+          awards: true,
+          courses: true,
+          researchActivities: true,
+          scientificActivities: true,
+          universityServices: true,
+          communityServices: true,
+          evaluations: true
+        }
+      }
+    },
+    orderBy: { name: 'asc' }
+  })
+
+  const facultyOverview = faculty.map((f) => {
+    const appraisals = f.appraisals
+    const totalAppraisals = appraisals.length
+    const totalAwards = appraisals.reduce((sum, app) => sum + app.awards.length, 0)
+    const totalResearch = appraisals.reduce((sum, app) => sum + app.researchActivities.length, 0)
+    const totalCourses = appraisals.reduce((sum, app) => sum + app.courses.length, 0)
+    const totalServices = appraisals.reduce((sum, app) => sum + app.universityServices.length + app.communityServices.length, 0)
+    const avgScore = appraisals.length > 0
+      ? appraisals.reduce((sum, app) => sum + (app.totalScore || 0), 0) / appraisals.length
+      : 0
+
+    return {
+      name: f.name,
+      email: f.email,
+      role: f.role,
+      department: f.department?.name || 'N/A',
+      college: f.department?.college?.name || 'N/A',
+      totalAppraisals,
+      totalAchievements: totalAwards + totalResearch + totalCourses + totalServices,
+      totalAwards,
+      totalResearch,
+      totalCourses,
+      totalServices,
+      averageScore: Math.round(avgScore * 100) / 100,
+      lastAppraisal: appraisals.length > 0 ? appraisals[0].cycle.academicYear : 'N/A'
+    }
+  })
+
+  return {
+    title: "Faculty Overview Report",
+    generatedAt: new Date().toISOString(),
+    totalRecords: facultyOverview.length,
+    data: facultyOverview,
   }
 }
 

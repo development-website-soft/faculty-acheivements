@@ -1,3 +1,5 @@
+'use server'
+
 import { notFound } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth/next';
@@ -8,21 +10,15 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AchievementViewer from '@/components/dean/achievement-viewer';
 import EvaluationForm from '@/components/dean/evaluation-form';
-import { EvaluationStatus, ResearchKind, UserRole } from '@prisma/client';
+import { EvaluationStatus, ResearchKind } from '@prisma/client';
 
 // --- SERVER ACTIONS ---
 async function computeAll(appraisalId: number) {
+    'use server'
     const appraisal = await prisma.appraisal.findUnique({
         where: { id: appraisalId },
-        include: {
-            researchActivities: true,
-            universityServices: true,
-            communityServices: true,
-            courses: true,
-            evaluations: true
-        }
+        include: { researchActivities: true, universityServices: true, communityServices: true, courses: true }
     });
-
     if (!appraisal) throw new Error('Appraisal not found');
 
     // Calculate scores based on the actual grading configuration
@@ -36,7 +32,7 @@ async function computeAll(appraisalId: number) {
         }
     }, 0);
 
-    const universityServiceScore = Math.min(appraisal.universityServices.length * 4, 20);
+    const universityServiceScore = Math.min(appraisal.universityServices.length * 4, 30);
     const communityServiceScore = Math.min(appraisal.communityServices.length * 4, 20);
 
     const teachingScore = appraisal.courses.length > 0
@@ -77,73 +73,95 @@ async function computeAll(appraisalId: number) {
             },
         })
     ]);
-
     revalidatePath(`/dean/reviews/${appraisalId}`);
 }
 
 async function sendScores(appraisalId: number) {
     await prisma.appraisal.update({
         where: { id: appraisalId },
-        data: { status: EvaluationStatus.complete },
+        data: { status: EvaluationStatus.sent },
     });
     revalidatePath(`/dean/reviews/${appraisalId}`);
 }
 
 // --- DATA FETCHING ---
 async function getAppraisalData(appraisalId: number, deanUserId: number) {
-    // Get dean information with college details
-    const dean = await prisma.user.findUnique({
-        where: { id: deanUserId },
-        include: {
-            department: {
-                include: { college: true }
-            }
-        }
+    // Get dean with their college
+    const dean = await prisma.user.findUnique({ 
+        where: { id: deanUserId }, 
+        include: { college: true } 
     });
-
-    if (!dean || dean.role !== UserRole.DEAN) {
+    
+    if (!dean) {
+        console.error('Dean user not found:', deanUserId);
         return null;
     }
 
+    // Get appraisal with all required data
     const appraisal = await prisma.appraisal.findUnique({
         where: { id: appraisalId },
         include: {
-            faculty: {
-                include: {
-                    department: {
-                        include: { college: true }
-                    }
-                }
+            faculty: { 
+                include: { 
+                    department: { include: { college: true } } 
+                } 
             },
             cycle: true,
-            evaluations: {
-                include: {
-                    behaviorRatings: true
-                }
-            },
-            awards: true,
-            courses: true,
-            researchActivities: true,
-            scientificActivities: true,
-            universityServices: true,
+            evaluations: true,
+            awards: true, 
+            courses: true, 
+            researchActivities: true, 
+            scientificActivities: true, 
+            universityServices: true, 
             communityServices: true,
         }
     });
 
-    // Validate that the appraisal exists and dean can review it
     if (!appraisal) {
+        console.error('Appraisal not found:', appraisalId);
         return null;
     }
-
-    // Dean can review HOD appraisals from their college
-    if (appraisal.faculty.role === UserRole.HOD) {
-        if (appraisal.faculty.department?.collegeId !== dean.department?.collegeId) {
-            return null; // HOD not in dean's college
-        }
-    } else {
-        return null; // Dean should only review HOD appraisals
+    
+    // Check if the faculty member is an HOD
+    if (appraisal.faculty.role !== 'HOD') {
+        console.error('Faculty is not an HOD:', appraisal.faculty.role);
+        return null;
     }
-
+    
+    // Check if HOD belongs to a department
+    if (!appraisal.faculty.department) {
+        console.error('HOD does not belong to a department');
+        return null;
+    }
+    
+    // Get HOD's college through department relationship
+    const hodCollegeId = appraisal.faculty.department.collegeId;
+    
+    // Check if dean and HOD are in the same college
+    if (dean.collegeId !== hodCollegeId) {
+        console.error('Dean and HOD are not in the same college:', {
+            deanCollegeId: dean.collegeId,
+            hodCollegeId: hodCollegeId,
+            deanId: deanUserId,
+            hodId: appraisal.facultyId
+        });
+        return null;
+    }
+    
+    // Check if dean is not trying to review themselves
+    if (appraisal.facultyId === deanUserId) {
+        console.error('Dean cannot review themselves');
+        return null;
+    }
+    
+    console.log('Dean review access granted:', {
+        deanId: deanUserId,
+        hodId: appraisal.facultyId,
+        hodName: appraisal.faculty.name,
+        hodDept: appraisal.faculty.department.name,
+        collegeId: hodCollegeId
+    });
+    
     return appraisal;
 }
 
@@ -155,8 +173,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ apprais
         notFound();
     }
 
-    // Check if user is dean
-    if (session.user.role !== UserRole.DEAN) {
+    // Check if user is DEAN
+    if (session.user.role !== 'DEAN') {
         notFound();
     }
 
@@ -181,16 +199,15 @@ export default async function ReviewPage({ params }: { params: Promise<{ apprais
                 <CardHeader>
                     <div className="flex justify-between items-start">
                         <div>
-                            <CardTitle className="text-2xl">Dean Appraisal Review</CardTitle>
-                            <p className="text-muted-foreground">
-                                {faculty.name} - {faculty.department?.name ?? 'N/A'} ({faculty.department?.college?.name ?? 'N/A'})
-                            </p>
+                            <CardTitle className="text-2xl">HOD Appraisal Review</CardTitle>
+                            <p className="text-muted-foreground">{faculty.name} - {faculty.department?.name ?? 'N/A'}</p>
+                            <p className="text-sm text-muted-foreground">{faculty.department?.college?.name ?? 'N/A'}</p>
                         </div>
                         <div className="text-right">
                             <p className="font-semibold">
                                 {cycle.academicYear} ({new Date(cycle.startDate).getFullYear()} - {new Date(cycle.endDate).getFullYear()})
                             </p>
-                            <Badge className={getStatusColor(status)}>{status}</Badge>
+                            <Badge>{status}</Badge>
                         </div>
                     </div>
                 </CardHeader>
@@ -221,14 +238,4 @@ export default async function ReviewPage({ params }: { params: Promise<{ apprais
             </Tabs>
         </div>
     );
-}
-
-function getStatusColor(status: EvaluationStatus) {
-    switch (status) {
-        case EvaluationStatus.new: return "bg-blue-100 text-blue-800";
-        case EvaluationStatus.sent: return "bg-orange-100 text-orange-800";
-        case EvaluationStatus.complete: return "bg-green-100 text-green-800";
-        case EvaluationStatus.returned: return "bg-red-100 text-red-800";
-        default: return "bg-gray-100 text-gray-800";
-    }
 }
