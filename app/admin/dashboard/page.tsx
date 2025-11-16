@@ -116,10 +116,10 @@ export default async function AdminDashboard() {
 
   const statusColors = {
     NEW: "bg-blue-100 text-blue-800",
-    IN_REVIEW: "bg-yellow-100 text-yellow-800",
-    SCORES_SENT: "bg-green-100 text-green-800",
-    COMPLETE: "bg-purple-100 text-purple-800",
-    RETURNED: "bg-red-100 text-red-800",
+    sent: "bg-green-100 text-green-800",
+    complete: "bg-purple-100 text-purple-800",
+    returned: "bg-red-100 text-red-800",
+    new: "bg-gray-100 text-gray-800",
   }
 
   return (

@@ -39,7 +39,7 @@ export default function FacultyPrintPage() {
       const response = await fetch("/api/appraisals")
       if (response.ok) {
         const data = await response.json()
-        setAppraisals(data.filter((a: Appraisal) => a.status === "COMPLETE"))
+        setAppraisals(data.filter((a: Appraisal) => a.status === "complete"))
       }
     } catch (error) {
       console.error("Error fetching appraisals:", error)

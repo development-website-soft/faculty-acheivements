@@ -28,9 +28,9 @@ export async function GET(req: Request) {
   })
 
   const total = appraisals.length
-  const sentCount = appraisals.filter(a => a.status === 'SCORES_SENT').length
-  const completeCount = appraisals.filter(a => a.status === 'COMPLETE').length
-  const returnedCount = appraisals.filter(a => a.status === 'RETURNED').length
+  const sentCount = appraisals.filter(a => a.status === 'sent').length
+  const completeCount = appraisals.filter(a => a.status === 'complete').length
+  const returnedCount = appraisals.filter(a => a.status === 'returned').length
   const completionRate = total ? completeCount / total : 0
   const avgTotal = avg(appraisals.map(a => a.totalScore ?? 0))
 

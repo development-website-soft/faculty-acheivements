@@ -102,10 +102,10 @@ export default function AppraisalsPage() {
 
   const statusColors = {
     NEW: "bg-blue-100 text-blue-800",
-    IN_REVIEW: "bg-yellow-100 text-yellow-800",
-    SCORES_SENT: "bg-green-100 text-green-800",
-    COMPLETE: "bg-purple-100 text-purple-800",
-    RETURNED: "bg-red-100 text-red-800",
+    sent: "bg-green-100 text-green-800",
+    complete: "bg-purple-100 text-purple-800",
+    returned: "bg-red-100 text-red-800",
+    new: "bg-gray-100 text-gray-800",
   }
 
   if (isLoading) {
@@ -154,10 +154,10 @@ export default function AppraisalsPage() {
               <SelectContent>
                 <SelectItem value="ALL">All Status</SelectItem>
                 <SelectItem value="NEW">New</SelectItem>
-                <SelectItem value="IN_REVIEW">In Review</SelectItem>
-                <SelectItem value="SCORES_SENT">Scores Sent</SelectItem>
-                <SelectItem value="COMPLETE">Complete</SelectItem>
-                <SelectItem value="RETURNED">Returned</SelectItem>
+                <SelectItem value="sent">Sent</SelectItem>
+                <SelectItem value="complete">Complete</SelectItem>
+                <SelectItem value="returned">Returned</SelectItem>
+                <SelectItem value="new">New</SelectItem>
               </SelectContent>
             </Select>
             <Select value={roleFilter} onValueChange={setRoleFilter}>

@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       where: {
         id: parseInt(appraisalId),
         facultyId: parseInt(user.id),
-        status: EvaluationStatus.SCORES_SENT
+        status: EvaluationStatus.sent
       }
     })
 
@@ -50,10 +50,10 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Update appraisal status to RETURNED
+    // Update appraisal status to returned
     await prisma.appraisal.update({
       where: { id: parseInt(appraisalId) },
-      data: { status: EvaluationStatus.RETURNED }
+      data: { status: EvaluationStatus.returned }
     })
 
     return NextResponse.json(appeal, { status: 201 })
@@ -125,10 +125,10 @@ export async function PATCH(request: NextRequest) {
       }
     })
 
-    // Update appraisal status back to IN_REVIEW for re-evaluation
+    // Update appraisal status back to sent for re-evaluation
     await prisma.appraisal.update({
       where: { id: appeal.appraisalId },
-      data: { status: EvaluationStatus.IN_REVIEW }
+      data: { status: EvaluationStatus.sent }
     })
 
     return NextResponse.json(updatedAppeal)

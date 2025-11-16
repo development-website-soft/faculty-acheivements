@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireDean } from '@/lib/auth-utils'
+import { EvaluationStatus } from '@prisma/client'
 
 export async function GET(req: Request) {
   try {
@@ -42,9 +43,9 @@ export async function GET(req: Request) {
       select: { totalScore: true, status: true },
     })
     const total = collegeApps.length
-    const sentCount = collegeApps.filter(a => a.status === 'sent').length
-    const completeCount = collegeApps.filter(a => a.status === 'complete').length
-    const returnedCount = collegeApps.filter(a => a.status === 'returned').length
+    const sentCount = collegeApps.filter(a => a.status === EvaluationStatus.sent).length
+    const completeCount = collegeApps.filter(a => a.status === EvaluationStatus.complete).length
+    const returnedCount = collegeApps.filter(a => a.status === EvaluationStatus.returned).length
     const completionRate = total ? completeCount / total : 0
     const avgTotal = avg(collegeApps.map(a => a.totalScore ?? 0))
 
@@ -55,7 +56,7 @@ export async function GET(req: Request) {
           select: { totalScore: true, status: true },
         })
         const deptTotal = apps.length
-        const complete = apps.filter(a => a.status === 'COMPLETE').length
+        const complete = apps.filter(a => a.status === EvaluationStatus.complete).length
         return {
           department: d.name,
           avgTotal: avg(apps.map(a => a.totalScore ?? 0)),

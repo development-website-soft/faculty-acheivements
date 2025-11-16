@@ -130,11 +130,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update appraisal status to IN_REVIEW if it was NEW
-    if (appraisal.status === EvaluationStatus.NEW) {
+    // Update appraisal status to sent if it was new
+    if (appraisal.status === EvaluationStatus.new) {
       await prisma.appraisal.update({
         where: { id: parseInt(appraisalId) },
-        data: { status: EvaluationStatus.IN_REVIEW }
+        data: { status: EvaluationStatus.sent }
       })
     }
 
@@ -191,7 +191,7 @@ export async function PATCH(request: NextRequest) {
     let newStatus: EvaluationStatus
 
     if (action === 'send_scores') {
-      newStatus = EvaluationStatus.SCORES_SENT
+      newStatus = EvaluationStatus.sent
       // Update the appraisal with reviewer timestamps
       const updateData: any = {}
       if (role === EvaluationRole.HOD) {

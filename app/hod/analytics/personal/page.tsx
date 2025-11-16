@@ -11,20 +11,48 @@ export default async function HODPersonalAnalyticsPage(){
 
   const appraisals = await prisma.appraisal.findMany({
     where: { facultyId: parseInt(user.id) },
-    include: { cycle: true },
+    include: {
+      cycle: true,
+      evaluations: true
+    },
     orderBy: { id: 'asc' },
   })
 
-  const data = appraisals.map(a => ({
-    id: a.id,
-    label: `${a.cycle?.academicYear ?? ''}`.trim(),
-    status: a.status,
-    research: a.researchScore ?? 0,
-    university: a.universityServiceScore ?? 0,
-    community: a.communityServiceScore ?? 0,
-    teaching: a.teachingQualityScore ?? 0,
-    total: a.totalScore ?? 0,
-  }))
+  const data = appraisals.map(a => {
+    // Calculate scores from evaluations if available, otherwise use Appraisal fields
+    let research = a.researchScore ?? 0
+    let university = a.universityServiceScore ?? 0
+    let community = a.communityServiceScore ?? 0
+    let teaching = a.teachingQualityScore ?? 0
+    let total = a.totalScore ?? 0
+
+    // If evaluations exist, calculate from the latest evaluation
+    if (a.evaluations && a.evaluations.length > 0) {
+      const latestEval = a.evaluations.sort((x, y) => new Date(y.updatedAt).getTime() - new Date(x.updatedAt).getTime())[0]
+
+      if (latestEval) {
+        research = latestEval.researchPts ?? 0
+        university = latestEval.universityServicePts ?? 0
+        community = latestEval.communityServicePts ?? 0
+        teaching = latestEval.teachingQualityPts ?? 0
+        total = latestEval.totalScore ?? (research + university + community + teaching)
+      }
+    } else {
+      // If no evaluations, calculate total from individual appraisal scores
+      total = research + university + community + teaching
+    }
+
+    return {
+      id: a.id,
+      label: `${a.cycle?.academicYear ?? ''}`.trim(),
+      status: a.status,
+      research,
+      university,
+      community,
+      teaching,
+      total,
+    }
+  })
 
   return (
     <div className="p-6 space-y-6">

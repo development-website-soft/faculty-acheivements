@@ -105,16 +105,16 @@ export async function GET(request: NextRequest) {
         group.totalAppraisals++
 
         switch (appraisal.status) {
-          case EvaluationStatus.COMPLETE:
+          case 'complete':
             group.completedAppraisals++
             break
-          case EvaluationStatus.NEW:
+          case 'new':
             group.newAppraisals++
             break
-          case EvaluationStatus.SCORES_SENT:
+          case 'sent':
             group.sentAppraisals++
             break
-          case EvaluationStatus.RETURNED:
+          case 'returned':
             group.returnedAppraisals++
             break
         }

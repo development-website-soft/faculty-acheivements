@@ -118,10 +118,10 @@ export default function InstructorPage() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       NEW: "secondary",
-      IN_REVIEW: "default",
-      SCORES_SENT: "outline",
-      COMPLETE: "default",
-      RETURNED: "destructive",
+      sent: "outline",
+      complete: "default",
+      returned: "destructive",
+      new: "default",
     }
     return <Badge variant={variants[status] || "secondary"}>{status.replace("_", " ")}</Badge>
   }
@@ -178,7 +178,7 @@ export default function InstructorPage() {
                   Submit for Review
                 </Button>
               </div>
-            ) : currentAppraisal.status === "SCORES_SENT" ? (
+            ) : currentAppraisal.status === "sent" ? (
               <div className="flex gap-2">
                 <Button variant="outline" className="text-destructive hover:text-destructive">
                   <AlertCircle className="mr-2 h-4 w-4" />

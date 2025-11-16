@@ -46,7 +46,7 @@ const data = apps.map(a => {
 
   return {
     id: a.id,
-    label: `${a.cycle?.academicYear ?? ''} ${a.cycle?.semester ?? ''}`.trim(),
+    label: `${a.cycle?.academicYear ?? ''}`.trim(),
     status: a.status,
     research,
     university,
@@ -150,7 +150,7 @@ export default function FacultyAnalyticsPage() {
   }
 
   // Calculate statistics
-  const completedAppraisals = appraisals.filter(a => a.status === "COMPLETE")
+  const completedAppraisals = appraisals.filter(a => a.status === "complete")
   const averageScore = completedAppraisals.length > 0
     ? completedAppraisals.reduce((sum, a) => sum + (a.totalScore || 0), 0) / completedAppraisals.length
     : 0

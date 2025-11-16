@@ -29,11 +29,10 @@ type HodAnalytics = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  NEW: '#999999',
-  IN_REVIEW: '#0ea5e9',
-  SCORES_SENT: '#f59e0b',
-  RETURNED: '#ef4444',
-  COMPLETE: '#10b981',
+  new: '#999999',
+  sent: '#f59e0b',
+  complete: '#10b981',
+  returned: '#ef4444',
 }
 
 export default function HODAnalyticsPage() {
