@@ -36,7 +36,6 @@ enum EvaluationRole   {
   DEAN 
   }
 
-/// الأعمدة الرئيسة في التقييم (للاستخدام في الواجهات/التجميع)
 enum Pillar { 
   RESEARCH 
   UNIVERSITY_SERVICE 
@@ -44,7 +43,6 @@ enum Pillar {
   TEACHING_QUALITY 
   }
 
-/// نطاقات/سلالم للتقييم (اختياري للعرض)
 enum RatingBand { 
   HIGHLY_EXCEEDS 
   EXCEEDS 

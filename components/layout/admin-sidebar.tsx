@@ -35,7 +35,7 @@ const adminNavItems = [
   { href: "/admin/grading", icon: Award, label: "Grading" },
   { href: "/admin/appraisals", icon: FileText, label: "Appraisals" },
   { href: "/admin/appeals", icon: MessageSquare, label: "Appeals Center" },
-  { href: "/admin/reports", icon: BarChart, label: "Reports" },
+  // { href: "/admin/reports", icon: BarChart, label: "Reports" },
   { href: "/admin/audit", icon: Shield, label: "Audit Log" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ]
@@ -45,7 +45,7 @@ export function AdminSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
 
-  const userId = (session?.user as any)?.id // تأكد أن الـsession يُرجع id
+  const userId = (session?.user as any)?.id 
   const userName = session?.user?.name || "Admin User"
   const userEmail = session?.user?.email || ""
 
